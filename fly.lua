@@ -1,4 +1,3 @@
--- [[ 9178 ]] --
 local function _Obfuscate()
     local _ = string
     local _x = table
