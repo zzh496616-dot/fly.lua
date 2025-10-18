@@ -1,1294 +1,838 @@
--- 修复自动追踪脚本 - 完整功能版
-local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-local PathfindingService = game:GetService("PathfindingService")
-local LocalPlayer = Players.LocalPlayer
+local L_1_ = game
+local L_2_ = L_1_.GetService
+local L_3_ = L_2_(L_1_, "\080\108\097\121\101\114\115")
+local L_4_ = L_3_.LocalPlayer
+local L_5_ = L_4_.WaitForChild
+local L_6_ = L_5_(L_4_, "\080\108\097\121\101\114\071\117\105")
 
--- 追踪状态变量（源码本身就已公开）
-local playerTrackingEnabled = false
-local trackingConnection = nil
-local currentTarget = nil
-local currentTargetInfo = nil
-local isMoving = false
-local isCalculatingPath = false
+local L_7_ = L_6_.FindFirstChild
+local L_8_ = L_7_(L_6_, "\068\101\118\084\111\111\108\071\085\073")
+if L_8_ then L_8_:Destroy() end
 
--- 特殊追踪状态变量
-local specialTrackingEnabled = false
-local specialTrackingConnection = nil
-local specialTrackingStep = 0
-local specialPathCompleted = false
-local positionCheckConnection = nil
-local shouldStartSpecialTracking = false
+local L_9_ = Instance.new("\083\099\114\101\101\110\071\117\105")
+L_9_.Name = "\068\101\118\084\111\111\108\071\085\073"
+L_9_.Parent = L_6_
 
--- 自动跳跃状态变量
-local autoJumpEnabled = false
-local autoJumpConnection = nil
-local autoJumpCharAdded = nil
+local L_10_ = Instance.new("\070\114\097\109\101")
+L_10_.Name = "\077\097\105\110\067\111\110\116\097\105\110\101\114"
+L_10_.Size = UDim2.new(1, 0, 1, 0)
+L_10_.Position = UDim2.new(0, 0, 0, 0)
+L_10_.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+L_10_.Parent = L_9_
 
--- 僵尸躲避相关
-local avoidZombiesMode = false
-local zombieDetectionRadius = 50
-local zombieDangerRadius = 20
-local safetyCircle = nil
+local L_11_ = Instance.new("\070\114\097\109\101")
+L_11_.Name = "\083\105\100\101\098\097\114"
+L_11_.Size = UDim2.new(0, 220, 1, 0)
+L_11_.Position = UDim2.new(0, 0, 0, 0)
+L_11_.BackgroundColor3 = Color3.fromRGB(37, 37, 38)
+L_11_.BorderSizePixel = 0
+L_11_.Parent = L_10_
 
--- 移动方式相关
-local usePathfindingForTracking = true -- 默认使用 PathfindingService
-local userSelectedMoveMethod = true -- true = Pathfinding, false = Direct Move
+local L_12_ = Instance.new("\070\114\097\109\101")
+L_12_.Name = "\076\111\103\111\070\114\097\109\101"
+L_12_.Size = UDim2.new(1, 0, 0, 50)
+L_12_.Position = UDim2.new(0, 0, 0, 0)
+L_12_.BackgroundColor3 = Color3.fromRGB(45, 45, 48)
+L_12_.BorderSizePixel = 0
+L_12_.Parent = L_11_
 
--- 追踪模式
-local trackMode = "nearest" -- "nearest" 或 "avoidZombies"
+local L_13_ = Instance.new("\084\101\120\116\076\097\098\101\108")
+L_13_.Name = "\076\111\103\111\073\099\111\110"
+L_13_.Size = UDim2.new(0, 32, 0, 32)
+L_13_.Position = UDim2.new(0, 15, 0, 9)
+L_13_.BackgroundColor3 = Color3.fromRGB(0, 120, 215)
+L_13_.Text = "\082"
+L_13_.TextColor3 = Color3.fromRGB(255, 255, 255)
+L_13_.TextScaled = true
+L_13_.BorderSizePixel = 0
+L_13_.Parent = L_12_
 
--- 路径寻找相关
-local waypoints = {}
-local currentWaypointIndex = 0
-local lastPathUpdate = 0
-local PATH_UPDATE_INTERVAL = 3.0
+local L_14_ = Instance.new("\084\101\120\116\076\097\098\101\108")
+L_14_.Name = "\076\111\103\111\084\101\120\116"
+L_14_.Size = UDim2.new(0, 120, 0, 32)
+L_14_.Position = UDim2.new(0, 57, 0, 9)
+L_14_.BackgroundTransparency = 1
+L_14_.Text = "\105\115\107\101\108\101\116\111\110\032\116\111\111\108\115"
+L_14_.TextColor3 = Color3.fromRGB(212, 212, 212)
+L_14_.TextSize = 16
+L_14_.TextXAlignment = Enum.TextXAlignment.Left
+L_14_.Font = Enum.Font.SourceSansSemibold
+L_14_.Parent = L_12_
 
--- 速度检测相关（基于位移计算）
-local positionHistory = {} -- 存储过去1秒的位置数据
-local currentSpeed = 0
-local SPEED_THRESHOLD = 10 -- 速度阈值
+local L_15_ = Instance.new("\083\099\114\111\108\108\105\110\103\070\114\097\109\101")
+L_15_.Name = "\078\097\118\067\111\110\116\097\105\110\101\114"
+L_15_.Size = UDim2.new(1, 0, 1, -50)
+L_15_.Position = UDim2.new(0, 0, 0, 50)
+L_15_.BackgroundColor3 = Color3.fromRGB(37, 37, 38)
+L_15_.BorderSizePixel = 0
+L_15_.ScrollBarThickness = 6
+L_15_.ScrollBarImageColor3 = Color3.fromRGB(86, 86, 86)
+L_15_.CanvasSize = UDim2.new(0, 0, 0, 800)
+L_15_.Parent = L_11_
 
--- 群体检测相关
-local GROUP_DISTANCE_THRESHOLD = 15 -- 群体玩家最大距离
-local ISOLATED_DISTANCE_THRESHOLD = 30 -- 单体玩家远离群体距离
-
--- 视角设置
-local viewOffset = 8
-local viewHeight = 3
-
--- 特殊追踪区域定义
-local specialZonePosition = Vector3.new(-553.341797, 4.91997051, -122.554977)
-local triggerDistance = 10
-
--- 特殊追踪路径点
-local specialPathPoints = {
-    {
-        cframe = CFrame.new(-645.226868, 20.6829033, -93.9491882, -0.539620519, -0.225767493, 0.811072886, -0.0945639312, 0.973531127, 0.208073914, -0.836580992, 0.0355826952, -0.546686947),
-        usePathfinding = false,
-        requireJump = false,
-        tolerance = 4
-    },
-    {
-        cframe = CFrame.new(-650.066589, 23.0250225, -119.258598, 0.97004962, -0.00339772133, 0.242883042, 6.47250147e-08, 0.999902189, 0.0139874993, -0.242906794, -0.0135685522, 0.969954729),
-        usePathfinding = false,
-        requireJump = false,
-        tolerance = 4
-    },
-    {
-        cframe = CFrame.new(-649.124268, 24.4685116, -128.338882, 0.970273495, -0.00288717961, 0.241993904, -8.96199381e-09, 0.999928832, 0.0119299814, -0.24201113, -0.0115753468, 0.970204413),
-        usePathfinding = false,
-        requireJump = true,
-        tolerance = 4
-    },
-    {
-        cframe = CFrame.new(-753.076721, -5.05517483, 34.7810364, 0.960010469, -0.106645502, -0.258856416, -0.11040359, -0.993886948, 1.91712752e-05, -0.257276058, 0.0285602733, -0.965915918),
-        usePathfinding = true,
-        requireJump = false,
-        tolerance = 6
-    }
-}
-
--- 基础函数定义
-local function Distance(target)
-    local char = LocalPlayer.Character
-    if not char or not char:FindFirstChild("HumanoidRootPart") then
-        return math.huge
-    end
-    if not target or not target:FindFirstChild("HumanoidRootPart") then
-        return math.huge
-    end
-    return (char.HumanoidRootPart.Position - target.HumanoidRootPart.Position).Magnitude
-end
-
--- 计算两个玩家之间的距离
-local function distanceBetweenPlayers(player1, player2)
-    if not player1.Character or not player2.Character then
-        return math.huge
-    end
+local function L_16_(L_17_arg0, L_18_arg1, L_19_arg2)
+    local L_20_ = Instance.new("\070\114\097\109\101")
+    L_20_.Name = L_18_arg1 .. "\083\101\099\116\105\111\110"
+    L_20_.Size = UDim2.new(1, 0, 0, 40 + (#L_19_arg2 * 40))
+    L_20_.BackgroundTransparency = 1
+    L_20_.Parent = L_15_
     
-    local root1 = player1.Character:FindFirstChild("HumanoidRootPart")
-    local root2 = player2.Character:FindFirstChild("HumanoidRootPart")
+    local L_21_ = Instance.new("\084\101\120\116\076\097\098\101\108")
+    L_21_.Name = "\083\101\099\116\105\111\110\084\105\116\108\101"
+    L_21_.Size = UDim2.new(1, -20, 0, 30)
+    L_21_.Position = UDim2.new(0, 10, 0, 0)
+    L_21_.BackgroundTransparency = 1
+    L_21_.Text = L_17_arg0
+    L_21_.TextColor3 = Color3.fromRGB(150, 150, 150)
+    L_21_.TextSize = 12
+    L_21_.TextXAlignment = Enum.TextXAlignment.Left
+    L_21_.Font = Enum.Font.SourceSansSemibold
+    L_21_.Parent = L_20_
     
-    if not root1 or not root2 then
-        return math.huge
-    end
+    local L_22_ = Instance.new("\070\114\097\109\101")
+    L_22_.Name = "\066\117\116\116\111\110\067\111\110\116\097\105\110\101\114"
+    L_22_.Size = UDim2.new(1, 0, 0, #L_19_arg2 * 40)
+    L_22_.Position = UDim2.new(0, 0, 0, 30)
+    L_22_.BackgroundTransparency = 1
+    L_22_.Parent = L_20_
     
-    return (root1.Position - root2.Position).Magnitude
-end
-
--- 检测玩家群体 - 修复版
-local function findPlayerGroups()
-    local validPlayers = {}
-    
-    -- 收集所有有效的移动玩家
-    for _, player in pairs(Players:GetPlayers()) do
-        if player ~= LocalPlayer and player.Character then
-            local character = player.Character
-            local rootPart = character:FindFirstChild("HumanoidRootPart")
-            local humanoid = character:FindFirstChildOfClass("Humanoid")
-            
-            -- 检查玩家是否有速度（正在移动）
-            if rootPart and humanoid and humanoid.Health > 0 and humanoid.MoveDirection.Magnitude > 0 then
-                table.insert(validPlayers, player)
-            end
-        end
-    end
-    
-    if #validPlayers == 0 then
-        return {}, {}
-    end
-    
-    -- 检测群体
-    local groups = {}
-    local usedPlayers = {}
-    
-    for i, player1 in ipairs(validPlayers) do
-        if not usedPlayers[player1] then
-            local group = {player1}
-            usedPlayers[player1] = true
-            
-            for j, player2 in ipairs(validPlayers) do
-                if i ~= j and not usedPlayers[player2] then
-                    local distance = distanceBetweenPlayers(player1, player2)
-                    if distance <= GROUP_DISTANCE_THRESHOLD then
-                        table.insert(group, player2)
-                        usedPlayers[player2] = true
-                    end
-                end
-            end
-            
-            -- 只有大于等于3个玩家才算群体
-            if #group >= 3 then
-                table.insert(groups, group)
-            end
-        end
-    end
-    
-    -- 找出所有单体玩家（包括那些没有被分组的玩家）
-    local isolatedPlayers = {}
-    for _, player in ipairs(validPlayers) do
-        if not usedPlayers[player] then
-            table.insert(isolatedPlayers, player)
-        end
-    end
-    
-    return groups, isolatedPlayers
-end
-
--- 检测附近的僵尸
-local function findNearbyZombies()
-    local zombies = {}
-    local zombiesFolder = workspace:FindFirstChild("Zombies")
-    
-    if not zombiesFolder then return zombies end
-    
-    local localPos = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") and 
-                     LocalPlayer.Character.HumanoidRootPart.Position
-    
-    if not localPos then return zombies end
-    
-    for _, zombie in pairs(zombiesFolder:GetChildren()) do
-        if zombie:IsA("Model") then
-            local zombieRoot = zombie:FindFirstChild("HumanoidRootPart")
-            if zombieRoot then
-                local distance = (zombieRoot.Position - localPos).Magnitude
-                if distance <= zombieDetectionRadius then
-                    table.insert(zombies, {
-                        model = zombie,
-                        rootPart = zombieRoot,
-                        distance = distance
-                    })
-                end
-            end
-        end
-    end
-    
-    -- 按距离排序，最近的排在前面
-    table.sort(zombies, function(a, b)
-        return a.distance < b.distance
-    end)
-    
-    return zombies
-end
-
--- 创建安全区域可视化圆
-local function createSafetyCircle()
-    if safetyCircle then
-        safetyCircle:Destroy()
-    end
-    
-    safetyCircle = Instance.new("Part")
-    safetyCircle.Name = "SafetyCircle"
-    safetyCircle.Anchored = true
-    safetyCircle.CanCollide = false
-    safetyCircle.Material = Enum.Material.Neon
-    safetyCircle.BrickColor = BrickColor.new("Bright green")
-    safetyCircle.Transparency = 0.7
-    safetyCircle.Size = Vector3.new(1, 0.2, 1)
-    
-    -- 创建圆柱体网格
-    local mesh = Instance.new("CylinderMesh", safetyCircle)
-    mesh.Scale = Vector3.new(zombieDetectionRadius * 2, 0.1, zombieDetectionRadius * 2)
-    
-    safetyCircle.Parent = workspace
-    
-    -- 更新圆的位置
-    local function updateCirclePosition()
-        if safetyCircle and LocalPlayer.Character then
-            local hrp = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-            if hrp then
-                safetyCircle.Position = Vector3.new(hrp.Position.X, hrp.Position.Y - 3, hrp.Position.Z)
-            end
-        end
-    end
-    
-    -- 每帧更新圆的位置
-    RunService.Heartbeat:Connect(updateCirclePosition)
-    
-    return safetyCircle
-end
-
--- 移除安全区域可视化圆
-local function removeSafetyCircle()
-    if safetyCircle then
-        safetyCircle:Destroy()
-        safetyCircle = nil
-    end
-end
-
--- 计算远离僵尸的安全方向
-local function calculateSafeDirection(zombies)
-    if #zombies == 0 then return nil end
-    
-    local localPos = LocalPlayer.Character.HumanoidRootPart.Position
-    local totalDirection = Vector3.new(0, 0, 0)
-    
-    for _, zombie in ipairs(zombies) do
-        local zombiePos = zombie.rootPart.Position
-        local direction = (localPos - zombiePos).Unit  -- 远离僵尸的方向
+    for L_23_, L_24_ in ipairs(L_19_arg2) do
+        local L_25_ = Instance.new("\084\101\120\116\066\117\116\116\111\110")
+        L_25_.Name = L_24_.name
+        L_25_.Size = UDim2.new(1, 0, 0, 35)
+        L_25_.Position = UDim2.new(0, 0, 0, (L_23_-1)*40)
+        L_25_.BackgroundColor3 = Color3.fromRGB(37, 37, 38)
+        L_25_.BorderSizePixel = 0
+        L_25_.Text = "\032\032" .. L_24_.text
+        L_25_.TextColor3 = Color3.fromRGB(212, 212, 212)
+        L_25_.TextSize = 14
+        L_25_.TextXAlignment = Enum.TextXAlignment.Left
+        L_25_.Font = Enum.Font.SourceSans
+        L_25_.Parent = L_22_
         
-        -- 根据距离加权，越近的僵尸权重越大
-        local weight = 1 / (zombie.distance + 0.1)
-        totalDirection = totalDirection + (direction * weight)
-    end
-    
-    -- 归一化方向
-    if totalDirection.Magnitude > 0 then
-        return totalDirection.Unit
-    end
-    
-    return nil
-end
-
--- 基于位移计算速度（1秒内的平均速度）
-local function calculateCurrentSpeed()
-    if not LocalPlayer.Character then
-        return 0
-    end
-    
-    local humanoid = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
-    local humanoidRootPart = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-    
-    -- 检查角色是否死亡或无效
-    if not humanoid or not humanoidRootPart or humanoid.Health <= 0 then
-        positionHistory = {} -- 重置位置历史
-        return 0
-    end
-    
-    local currentTime = tick()
-    local currentPos = humanoidRootPart.Position
-    
-    -- 添加当前位置到历史记录
-    table.insert(positionHistory, {
-        time = currentTime,
-        position = currentPos
-    })
-    
-    -- 清理超过1秒的旧数据
-    while #positionHistory > 0 and currentTime - positionHistory[1].time > 1.0 do
-        table.remove(positionHistory, 1)
-    end
-    
-    -- 计算1秒内的总位移
-    if #positionHistory >= 2 then
-        local totalDistance = 0
-        local oldestPos = positionHistory[1].position
-        
-        -- 计算从最早位置到当前位置的总距离
-        totalDistance = (currentPos - oldestPos).Magnitude
-        
-        -- 计算时间差（确保至少0.1秒的数据）
-        local timeDiff = currentTime - positionHistory[1].time
-        if timeDiff > 0.1 then
-            currentSpeed = totalDistance / timeDiff -- 速度 = 位移 / 时间
-        else
-            currentSpeed = 0
-        end
-    else
-        currentSpeed = 0
-    end
-    
-    return currentSpeed
-end
-
--- 根据用户选择切换移动方式
-local function updateMovementMethod()
-    usePathfindingForTracking = userSelectedMoveMethod
-end
-
--- 检查是否到达触发位置
-local function isAtTriggerPosition()
-    if not LocalPlayer.Character then return false end
-    
-    local humanoidRootPart = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-    if not humanoidRootPart then return false end
-    
-    local distance = (humanoidRootPart.Position - specialZonePosition).Magnitude
-    return distance <= triggerDistance
-end
-
--- 智能自动跳跃函数
-local function startAutoJump()
-    if autoJumpConnection then
-        autoJumpConnection:Disconnect()
-    end
-    
-    local Char = LocalPlayer.Character
-    local Human = Char and Char:FindFirstChildOfClass("Humanoid")
-    
-    local function autoJump()
-        if Char and Human then
-            local check1 = workspace:FindPartOnRay(Ray.new(Human.RootPart.Position - Vector3.new(0, 1.5, 0), Human.RootPart.CFrame.lookVector * 3), Char)
-            local check2 = workspace:FindPartOnRay(Ray.new(Human.RootPart.Position + Vector3.new(0, 1.5, 0), Human.RootPart.CFrame.lookVector * 3), Char)
-            if check1 or check2 then
-                Human.Jump = true
+        L_25_.MouseEnter:Connect(function()
+            if not L_24_.selected then
+                L_25_.BackgroundColor3 = Color3.fromRGB(62, 62, 66)
             end
-        end
-    end
-    
-    autoJump()
-    autoJumpConnection = RunService.RenderStepped:Connect(autoJump)
-    
-    -- 角色重生时重新连接
-    if autoJumpCharAdded then
-        autoJumpCharAdded:Disconnect()
-    end
-    autoJumpCharAdded = LocalPlayer.CharacterAdded:Connect(function(nChar)
-        Char, Human = nChar, nChar:WaitForChild("Humanoid")
-        autoJump()
-        if autoJumpConnection then
-            autoJumpConnection:Disconnect()
-        end
-        autoJumpConnection = RunService.RenderStepped:Connect(autoJump)
-    end)
-end
-
-local function stopAutoJump()
-    if autoJumpConnection then
-        autoJumpConnection:Disconnect()
-        autoJumpConnection = nil
-    end
-    if autoJumpCharAdded then
-        autoJumpCharAdded:Disconnect()
-        autoJumpCharAdded = nil
-    end
-end
-
--- 检查是否到达特殊路径点
-local function hasReachedSpecialPoint(targetCFrame, tolerance)
-    tolerance = tolerance or 4
-    if not LocalPlayer.Character then return false end
-    
-    local humanoidRootPart = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-    if not humanoidRootPart then return false end
-    
-    local distance = (humanoidRootPart.Position - targetCFrame.Position).Magnitude
-    return distance <= tolerance
-end
-
--- 异步路径计算函数
-local function computePathToTargetAsync(targetPosition)
-    if not LocalPlayer.Character or isCalculatingPath then return false end
-    
-    local humanoidRootPart = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-    if not humanoidRootPart then return false end
-    
-    isCalculatingPath = true
-    
-    task.spawn(function()
-        local newPath = PathfindingService:CreatePath({
-            AgentRadius = 2.0,
-            AgentHeight = 5.0, 
-            AgentCanJump = true,
-            AgentCanClimb = true,
-            WaypointSpacing = 6
-        })
-        
-        local success = pcall(function()
-            newPath:ComputeAsync(humanoidRootPart.Position, targetPosition)
         end)
         
-        task.wait(0.15)
-        
-        if success and newPath.Status == Enum.PathStatus.Success then
-            waypoints = newPath:GetWaypoints()
-            currentWaypointIndex = 1
-            lastPathUpdate = tick()
-        else
-            waypoints = {}
-            currentWaypointIndex = 0
-        end
-        
-        isCalculatingPath = false
-    end)
-    
-    return true
-end
-
--- 移动到下一个路径点
-local function moveToNextWaypoint()
-    if not waypoints or currentWaypointIndex > #waypoints then return false end
-    
-    local humanoid = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
-    if not humanoid then return false end
-    
-    local currentWaypoint = waypoints[currentWaypointIndex]
-    humanoid:MoveTo(currentWaypoint.Position)
-    
-    local humanoidRootPart = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-    if humanoidRootPart then
-        local distance = (humanoidRootPart.Position - currentWaypoint.Position).Magnitude
-        if distance < 4 then
-            currentWaypointIndex = currentWaypointIndex + 1
-        end
-    end
-    
-    return true
-end
-
--- 直接移动到目标位置
-local function directMoveToTarget(targetPosition)
-    local humanoid = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
-    if not humanoid then return false end
-    
-    humanoid:MoveTo(targetPosition)
-    return true
-end
-
--- 特殊追踪移动函数
-local function moveToSpecialTarget(targetCFrame, usePathfinding)
-    if not LocalPlayer.Character then return false end
-    
-    local humanoid = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
-    local humanoidRootPart = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-    
-    if not humanoid or not humanoidRootPart then return false end
-    
-    local targetPosition = targetCFrame.Position
-    
-    if usePathfinding then
-        if not isCalculatingPath and (not waypoints or #waypoints == 0 or currentWaypointIndex > #waypoints) then
-            computePathToTargetAsync(targetPosition)
-        end
-        
-        if waypoints and #waypoints > 0 and currentWaypointIndex <= #waypoints then
-            moveToNextWaypoint()
-        else
-            humanoid:MoveTo(targetPosition)
-        end
-    else
-        humanoid:MoveTo(targetPosition)
-    end
-    
-    return true
-end
-
--- 后方位置计算
-local function calculateRearViewPosition(targetPosition, targetCFrame)
-    local lookVector = targetCFrame.LookVector
-    local upVector = targetCFrame.UpVector
-    return targetPosition + (-lookVector * viewOffset + upVector * viewHeight)
-end
-
--- 停止移动
-local function stopAllMovement()
-    if LocalPlayer.Character then
-        local humanoid = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
-        if humanoid then
-            humanoid:MoveTo(LocalPlayer.Character.HumanoidRootPart.Position)
-        end
-    end
-    isMoving = false
-    waypoints = {}
-    currentWaypointIndex = 0
-    isCalculatingPath = false
-end
-
--- 停止位置检测
-local function stopPositionDetection()
-    if positionCheckConnection then
-        positionCheckConnection:Disconnect()
-        positionCheckConnection = nil
-    end
-end
-
--- 特殊追踪主循环
-local function startSpecialTracking()
-    if specialTrackingConnection then
-        specialTrackingConnection:Disconnect()
-    end
-    
-    specialTrackingEnabled = true
-    specialTrackingStep = 1
-    specialPathCompleted = false
-    shouldStartSpecialTracking = false
-    
-    -- 关闭自动追踪功能
-    if playerTrackingEnabled then
-        playerTrackingEnabled = false
-        if trackingConnection then
-            trackingConnection:Disconnect()
-            trackingConnection = nil
-        end
-    end
-    
-    stopAllMovement()
-    stopPositionDetection()
-    
-    specialTrackingConnection = RunService.Heartbeat:Connect(function()
-        if not specialTrackingEnabled or not LocalPlayer.Character then
-            return
-        end
-        
-        -- 检查角色状态
-        local humanoid = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
-        local humanoidRootPart = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-        if not humanoid or not humanoidRootPart or humanoid.Health <= 0 then
-            stopAllMovement()
-            return
-        end
-        
-        if specialTrackingStep > #specialPathPoints then
-            specialTrackingEnabled = false
-            specialPathCompleted = true
-            if specialTrackingConnection then
-                specialTrackingConnection:Disconnect()
-                specialTrackingConnection = nil
+        L_25_.MouseLeave:Connect(function()
+            if not L_24_.selected then
+                L_25_.BackgroundColor3 = Color3.fromRGB(37, 37, 38)
             end
-            return
-        end
+        end)
         
-        local currentStep = specialPathPoints[specialTrackingStep]
-        if not currentStep then
-            specialTrackingEnabled = false
-            specialPathCompleted = true
-            if specialTrackingConnection then
-                specialTrackingConnection:Disconnect()
-                specialTrackingConnection = nil
-            end
-            return
-        end
+        L_24_.button = L_25_
+    end
+    
+    return L_20_, L_19_arg2
+end
+
+local L_26_ = {
+    {name = "\080\108\097\121\101\114\069\083\080", text = "\112\108\097\121\101\114\032\069\083\080", selected = false},
+    {name = "\070\108\121", text = "\102\108\121", selected = false},
+    {name = "\078\111\099\108\105\112", text = "\110\111\099\108\105\112", selected = false},
+    {name = "\083\112\101\101\100", text = "\109\111\100\105\102\121\032\115\112\101\101\100", selected = true}
+}
+
+local L_27_ = {
+    {name = "\071\097\109\101\083\116\097\116\115", text = "\103\097\109\101\032\115\116\097\116\105\115\116\105\099\115", selected = false},
+    {name = "\080\101\114\102\111\114\109\097\110\099\101", text = "\112\101\114\102\111\114\109\097\110\099\101\032\109\111\110\105\116\111\114", selected = false},
+    {name = "\068\101\098\117\103\073\110\102\111", text = "\100\101\098\117\103\032\105\110\102\111", selected = false}
+}
+
+local L_28_ = {
+    {name = "\071\101\110\101\114\097\108", text = "\103\101\110\101\114\097\108\032\115\101\116\116\105\110\103\115", selected = false},
+    {name = "\071\114\097\112\104\105\099\115", text = "\103\114\097\112\104\105\099\115\032\115\101\116\116\105\110\103\115", selected = false},
+    {name = "\067\111\110\116\114\111\108\115", text = "\099\111\110\116\114\111\108\032\115\101\116\116\105\110\103\115", selected = false}
+}
+
+local L_29_ = {
+    {name = "\067\108\101\097\114\087\097\116\101\114", text = "\099\108\101\097\114\032\119\097\116\101\114\032\115\099\114\105\112\116", selected = false},
+    {name = "\081\105\110\103\070\101\110\103", text = "\113\105\110\103\102\101\110\103\032\115\099\114\105\112\116", selected = false}
+}
+
+local L_30_, L_31_ = L_16_("\102\117\110\099\116\105\111\110\032\097\114\101\097", "\070\117\110\099\116\105\111\110", L_26_)
+L_30_.Position = UDim2.new(0, 0, 0, 0)
+
+local L_32_, L_33_ = L_16_("\105\110\102\111\032\097\114\101\097", "\073\110\102\111", L_27_)
+L_32_.Position = UDim2.new(0, 0, 0, L_30_.Size.Y.Offset)
+
+local L_34_, L_35_ = L_16_("\115\101\116\116\105\110\103\115\032\097\114\101\097", "\083\101\116\116\105\110\103\115", L_28_)
+L_34_.Position = UDim2.new(0, 0, 0, L_30_.Size.Y.Offset + L_32_.Size.Y.Offset)
+
+local L_36_, L_37_ = L_16_("\071\066\032\115\099\114\105\112\116\115", "\071\066\083\099\114\105\112\116", L_29_)
+L_36_.Position = UDim2.new(0, 0, 0, L_30_.Size.Y.Offset + L_32_.Size.Y.Offset + L_34_.Size.Y.Offset)
+
+local L_38_ = Instance.new("\070\114\097\109\101")
+L_38_.Name = "\067\111\110\116\101\110\116\065\114\101\097"
+L_38_.Size = UDim2.new(1, -220, 1, 0)
+L_38_.Position = UDim2.new(0, 220, 0, 0)
+L_38_.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+L_38_.BorderSizePixel = 0
+L_38_.Parent = L_10_
+
+local L_39_ = Instance.new("\070\114\097\109\101")
+L_39_.Name = "\067\111\110\116\101\110\116\072\101\097\100\101\114"
+L_39_.Size = UDim2.new(1, 0, 0, 40)
+L_39_.Position = UDim2.new(0, 0, 0, 0)
+L_39_.BackgroundColor3 = Color3.fromRGB(45, 45, 48)
+L_39_.BorderSizePixel = 0
+L_39_.Parent = L_38_
+
+local L_40_ = Instance.new("\084\101\120\116\076\097\098\101\108")
+L_40_.Name = "\067\111\110\116\101\110\116\084\105\116\108\101"
+L_40_.Size = UDim2.new(0.7, 0, 1, 0)
+L_40_.Position = UDim2.new(0, 20, 0, 0)
+L_40_.BackgroundTransparency = 1
+L_40_.Text = "\109\111\100\105\102\121\032\115\112\101\101\100"
+L_40_.TextColor3 = Color3.fromRGB(212, 212, 212)
+L_40_.TextSize = 18
+L_40_.TextXAlignment = Enum.TextXAlignment.Left
+L_40_.Font = Enum.Font.SourceSansSemibold
+L_40_.Parent = L_39_
+
+local L_41_ = Instance.new("\070\114\097\109\101")
+L_41_.Name = "\087\105\110\100\111\119\067\111\110\116\114\111\108\115"
+L_41_.Size = UDim2.new(0, 80, 1, 0)
+L_41_.Position = UDim2.new(1, -80, 0, 0)
+L_41_.BackgroundTransparency = 1
+L_41_.Parent = L_39_
+
+local L_42_ = Instance.new("\084\101\120\116\066\117\116\116\111\110")
+L_42_.Name = "\077\105\110\105\109\105\122\101\066\117\116\116\111\110"
+L_42_.Size = UDim2.new(0, 30, 0, 30)
+L_42_.Position = UDim2.new(0, 10, 0.5, -15)
+L_42_.BackgroundColor3 = Color3.fromRGB(62, 62, 66)
+L_42_.BorderSizePixel = 0
+L_42_.Text = "\095"
+L_42_.TextColor3 = Color3.fromRGB(212, 212, 212)
+L_42_.TextSize = 16
+L_42_.Parent = L_41_
+
+local L_43_ = Instance.new("\084\101\120\116\066\117\116\116\111\110")
+L_43_.Name = "\067\108\111\115\101\066\117\116\116\111\110"
+L_43_.Size = UDim2.new(0, 30, 0, 30)
+L_43_.Position = UDim2.new(0, 50, 0.5, -15)
+L_43_.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+L_43_.BorderSizePixel = 0
+L_43_.Text = "\215"
+L_43_.TextColor3 = Color3.fromRGB(255, 255, 255)
+L_43_.TextSize = 18
+L_43_.Parent = L_41_
+
+local L_44_ = Instance.new("\083\099\114\111\108\108\105\110\103\070\114\097\109\101")
+L_44_.Name = "\067\111\110\116\101\110\116\083\099\114\111\108\108"
+L_44_.Size = UDim2.new(1, 0, 1, -40)
+L_44_.Position = UDim2.new(0, 0, 0, 40)
+L_44_.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+L_44_.BorderSizePixel = 0
+L_44_.ScrollBarThickness = 8
+L_44_.ScrollBarImageColor3 = Color3.fromRGB(86, 86, 86)
+L_44_.CanvasSize = UDim2.new(0, 0, 0, 800)
+L_44_.Parent = L_38_
+
+local function L_45_(L_46_arg0, L_47_arg1, L_48_arg2, L_49_arg3, L_50_arg4, L_51_arg5)
+    local L_52_ = Instance.new("\070\114\097\109\101")
+    L_52_.Name = L_46_arg0
+    L_52_.Size = UDim2.new(1, -40, 0, 60)
+    L_52_.Position = UDim2.new(0, 20, 0, 0)
+    L_52_.BackgroundColor3 = Color3.fromRGB(37, 37, 38)
+    L_52_.BorderSizePixel = 0
+    
+    local L_53_ = Instance.new("\084\101\120\116\076\097\098\101\108")
+    L_53_.Name = "\073\116\101\109\076\097\098\101\108"
+    L_53_.Size = UDim2.new(0.6, 0, 0, 30)
+    L_53_.Position = UDim2.new(0, 15, 0, 15)
+    L_53_.BackgroundTransparency = 1
+    L_53_.Text = L_47_arg1
+    L_53_.TextColor3 = Color3.fromRGB(212, 212, 212)
+    L_53_.TextSize = 14
+    L_53_.TextXAlignment = Enum.TextXAlignment.Left
+    L_53_.Font = Enum.Font.SourceSans
+    L_53_.Parent = L_52_
+    
+    local L_54_ = Instance.new("\070\114\097\109\101")
+    L_54_.Name = "\067\111\110\116\114\111\108\115"
+    L_54_.Size = UDim2.new(0.35, 0, 1, 0)
+    L_54_.Position = UDim2.new(0.65, 0, 0, 0)
+    L_54_.BackgroundTransparency = 1
+    L_54_.Parent = L_52_
+    
+    local L_55_, L_56_, L_57_
+    
+    if L_48_arg2 then
+        L_55_ = Instance.new("\084\101\120\116\066\117\116\116\111\110")
+        L_55_.Name = "\084\111\103\103\108\101"
+        L_55_.Size = UDim2.new(0, 80, 0, 30)
+        L_55_.Position = UDim2.new(0, 0, 0.5, -15)
+        L_55_.BackgroundColor3 = Color3.fromRGB(0, 120, 215)
+        L_55_.BorderSizePixel = 0
+        L_55_.Text = "\101\110\097\098\108\101"
+        L_55_.TextColor3 = Color3.fromRGB(255, 255, 255)
+        L_55_.TextSize = 12
+        L_55_.Parent = L_54_
         
-        if hasReachedSpecialPoint(currentStep.cframe, currentStep.tolerance) then
-            specialTrackingStep = specialTrackingStep + 1
-            waypoints = {}
-            currentWaypointIndex = 0
-            isCalculatingPath = false
-            return
-        end
+        L_55_.MouseButton1Click:Connect(function()
+            if L_55_.Text == "\101\110\097\098\108\101" then
+                L_55_.Text = "\100\105\115\097\098\108\101"
+                L_55_.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+            else
+                L_55_.Text = "\101\110\097\098\108\101"
+                L_55_.BackgroundColor3 = Color3.fromRGB(0, 120, 215)
+            end
+        end)
+    end
+    
+    if L_49_arg3 then
+        L_56_ = Instance.new("\084\101\120\116\066\117\116\116\111\110")
+        L_56_.Name = "\086\097\108\117\101"
+        L_56_.Size = UDim2.new(0, 80, 0, 30)
+        L_56_.Position = UDim2.new(0, 90, 0.5, -15)
+        L_56_.BackgroundColor3 = Color3.fromRGB(62, 62, 66)
+        L_56_.BorderSizePixel = 0
+        L_56_.Text = tostring(L_50_arg4 or "\048")
+        L_56_.TextColor3 = Color3.fromRGB(212, 212, 212)
+        L_56_.TextSize = 12
+        L_56_.Parent = L_54_
         
-        moveToSpecialTarget(currentStep.cframe, currentStep.usePathfinding)
-    end)
-end
-
--- 停止特殊追踪
-local function stopSpecialTracking()
-    if specialTrackingEnabled then
-        specialTrackingEnabled = false
-        if specialTrackingConnection then
-            specialTrackingConnection:Disconnect()
-            specialTrackingConnection = nil
-        end
-        specialTrackingStep = 0
-    end
-end
-
--- 启动位置检测
-local function startPositionDetection()
-    if positionCheckConnection then
-        positionCheckConnection:Disconnect()
-    end
-    
-    positionCheckConnection = RunService.Heartbeat:Connect(function()
-        if playerTrackingEnabled and not specialTrackingEnabled and not specialPathCompleted then
-            if isAtTriggerPosition() then
-                shouldStartSpecialTracking = true
-                if positionCheckConnection then
-                    positionCheckConnection:Disconnect()
-                    positionCheckConnection = nil
-                end
+        L_56_.MouseButton1Click:Connect(function()
+            local L_58_ = tonumber(L_56_.Text)
+            if L_58_ then
+                L_58_ = L_58_ + 1
+                if L_58_ > 10 then L_58_ = 0 end
+                L_56_.Text = tostring(L_58_)
             end
-        end
-    end)
-end
-
--- 特殊追踪检查循环
-local function startSpecialTrackingMonitor()
-    RunService.Heartbeat:Connect(function()
-        if shouldStartSpecialTracking and not specialTrackingEnabled then
-            shouldStartSpecialTracking = false
-            startSpecialTracking()
-        end
-    end)
-end
-
--- 查找最近的玩家（修复版）- 确保没有群体时追踪单体
-local function findNearestPlayer()
-    local groups, isolatedPlayers = findPlayerGroups()
-    
-    local nearestPlayer = nil
-    local minDistance = math.huge
-    
-    -- 优先追踪群体玩家（3人及以上）
-    for _, group in ipairs(groups) do
-        for _, player in ipairs(group) do
-            if player.Character then
-                local character = player.Character
-                local rootPart = character:FindFirstChild("HumanoidRootPart")
-                local humanoid = character:FindFirstChildOfClass("Humanoid")
-                
-                if rootPart and humanoid and humanoid.Health > 0 and humanoid.MoveDirection.Magnitude > 0 then
-                    local distance = Distance(character)
-                    if distance < minDistance then
-                        minDistance = distance
-                        nearestPlayer = {
-                            player = player,
-                            character = character,
-                            rootPart = rootPart,
-                            playerName = player.Name,
-                            isGroup = true,
-                            groupSize = #group
-                        }
-                    end
-                end
-            end
-        end
+        end)
     end
     
-    -- 如果没有群体玩家，追踪单体玩家
-    if not nearestPlayer then
-        for _, player in ipairs(isolatedPlayers) do
-            if player.Character then
-                local character = player.Character
-                local rootPart = character:FindFirstChild("HumanoidRootPart")
-                local humanoid = character:FindFirstChildOfClass("Humanoid")
-                
-                if rootPart and humanoid and humanoid.Health > 0 and humanoid.MoveDirection.Magnitude > 0 then
-                    local distance = Distance(character)
-                    if distance < minDistance then
-                        minDistance = distance
-                        nearestPlayer = {
-                            player = player,
-                            character = character,
-                            rootPart = rootPart,
-                            playerName = player.Name,
-                            isGroup = false,
-                            groupSize = 1
-                        }
-                    end
-                end
-            end
-        end
-    end
-    
-    -- 如果还是没有找到，直接找所有移动玩家
-    if not nearestPlayer then
-        for _, player in pairs(Players:GetPlayers()) do
-            if player ~= LocalPlayer and player.Character then
-                local character = player.Character
-                local rootPart = character:FindFirstChild("HumanoidRootPart")
-                local humanoid = character:FindFirstChildOfClass("Humanoid")
-                
-                if rootPart and humanoid and humanoid.Health > 0 and humanoid.MoveDirection.Magnitude > 0 then
-                    local distance = Distance(character)
-                    if distance < minDistance then
-                        minDistance = distance
-                        nearestPlayer = {
-                            player = player,
-                            character = character,
-                            rootPart = rootPart,
-                            playerName = player.Name,
-                            isGroup = false,
-                            groupSize = 1
-                        }
-                    end
-                end
-            end
-        end
-    end
-    
-    return nearestPlayer, minDistance
-end
-
--- 查找距离僵尸最远的玩家（优先群体玩家）- 修复版
-local function findFurthestFromZombies()
-    local groups, isolatedPlayers = findPlayerGroups()
-    
-    local furthestPlayer = nil
-    local maxZombieDistance = 0
-    
-    local zombiePositions = {}
-    local zombiesFolder = workspace:FindFirstChild("Zombies")
-    if zombiesFolder then
-        for _, zombie in pairs(zombiesFolder:GetChildren()) do
-            if zombie:IsA("Model") then
-                local zombieRoot = zombie:FindFirstChild("HumanoidRootPart")
-                if zombieRoot then
-                    table.insert(zombiePositions, zombieRoot.Position)
-                end
-            end
-        end
-    end
-    
-    -- 如果没有僵尸，返回最近玩家
-    if #zombiePositions == 0 then
-        return findNearestPlayer()
-    end
-    
-    -- 优先在群体中寻找距离僵尸最远的玩家
-    for _, group in ipairs(groups) do
-        for _, player in ipairs(group) do
-            if player.Character then
-                local character = player.Character
-                local rootPart = character:FindFirstChild("HumanoidRootPart")
-                local humanoid = character:FindFirstChildOfClass("Humanoid")
-                
-                if rootPart and humanoid and humanoid.Health > 0 and humanoid.MoveDirection.Magnitude > 0 then
-                    local totalDistance = 0
-                    local validZombies = 0
-                    
-                    for _, zombiePos in ipairs(zombiePositions) do
-                        local dist = (rootPart.Position - zombiePos).Magnitude
-                        totalDistance = totalDistance + dist
-                        validZombies = validZombies + 1
-                    end
-                    
-                    if validZombies > 0 then
-                        local avgDistance = totalDistance / validZombies
-                        
-                        if avgDistance > maxZombieDistance then
-                            maxZombieDistance = avgDistance
-                            furthestPlayer = {
-                                player = player,
-                                character = character,
-                                rootPart = rootPart,
-                                playerName = player.Name,
-                                zombieDistance = avgDistance,
-                                isGroup = true,
-                                groupSize = #group
-                            }
-                        end
-                    end
-                end
-            end
-        end
-    end
-    
-    -- 如果没有群体玩家，再考虑单体玩家
-    if not furthestPlayer then
-        for _, player in ipairs(isolatedPlayers) do
-            if player.Character then
-                local character = player.Character
-                local rootPart = character:FindFirstChild("HumanoidRootPart")
-                local humanoid = character:FindFirstChildOfClass("Humanoid")
-                
-                if rootPart and humanoid and humanoid.Health > 0 and humanoid.MoveDirection.Magnitude > 0 then
-                    local totalDistance = 0
-                    local validZombies = 0
-                    
-                    for _, zombiePos in ipairs(zombiePositions) do
-                        local dist = (rootPart.Position - zombiePos).Magnitude
-                        totalDistance = totalDistance + dist
-                        validZombies = validZombies + 1
-                    end
-                    
-                    if validZombies > 0 then
-                        local avgDistance = totalDistance / validZombies
-                        
-                        if avgDistance > maxZombieDistance then
-                            maxZombieDistance = avgDistance
-                            furthestPlayer = {
-                                player = player,
-                                character = character,
-                                rootPart = rootPart,
-                                playerName = player.Name,
-                                zombieDistance = avgDistance,
-                                isGroup = false,
-                                groupSize = 1
-                            }
-                        end
-                    end
-                end
-            end
-        end
-    end
-    
-    -- 如果还是没有找到，直接找所有移动玩家
-    if not furthestPlayer then
-        for _, player in pairs(Players:GetPlayers()) do
-            if player ~= LocalPlayer and player.Character then
-                local character = player.Character
-                local rootPart = character:FindFirstChild("HumanoidRootPart")
-                local humanoid = character:FindFirstChildOfClass("Humanoid")
-                
-                if rootPart and humanoid and humanoid.Health > 0 and humanoid.MoveDirection.Magnitude > 0 then
-                    local totalDistance = 0
-                    local validZombies = 0
-                    
-                    for _, zombiePos in ipairs(zombiePositions) do
-                        local dist = (rootPart.Position - zombiePos).Magnitude
-                        totalDistance = totalDistance + dist
-                        validZombies = validZombies + 1
-                    end
-                    
-                    if validZombies > 0 then
-                        local avgDistance = totalDistance / validZombies
-                        
-                        if avgDistance > maxZombieDistance then
-                            maxZombieDistance = avgDistance
-                            furthestPlayer = {
-                                player = player,
-                                character = character,
-                                rootPart = rootPart,
-                                playerName = player.Name,
-                                zombieDistance = avgDistance,
-                                isGroup = false,
-                                groupSize = 1
-                            }
-                        end
-                    end
-                end
-            end
-        end
-    end
-    
-    return furthestPlayer, maxZombieDistance
-end
-
--- 根据模式选择目标玩家
-local function findTargetPlayer()
-    if trackMode == "furthestFromZombies" then
-        return findFurthestFromZombies()
-    else
-        return findNearestPlayer()
-    end
-end
-
--- 主追踪循环 - 根据用户选择切换移动方式
-local function startPlayerTracking()
-    if trackingConnection then
-        trackingConnection:Disconnect()
-    end
-    
-    trackingConnection = RunService.Heartbeat:Connect(function()
-        -- 基础检查
-        if not playerTrackingEnabled or not LocalPlayer.Character or specialTrackingEnabled then 
-            stopAllMovement()
-            return
-        end
+    if L_51_arg5 then
+        local L_59_ = Instance.new("\070\114\097\109\101")
+        L_59_.Name = "\083\108\105\100\101\114\067\111\110\116\097\105\110\101\114"
+        L_59_.Size = UDim2.new(1, -100, 0, 30)
+        L_59_.Position = UDim2.new(0, 0, 0.5, -15)
+        L_59_.BackgroundTransparency = 1
+        L_59_.Parent = L_54_
         
-        -- 检查角色状态（角色死亡时停止追踪）
-        local humanoid = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
-        local humanoidRootPart = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-        if not humanoid or not humanoidRootPart or humanoid.Health <= 0 then
-            stopAllMovement()
-            return
-        end
+        local L_60_ = Instance.new("\070\114\097\109\101")
+        L_60_.Name = "\083\108\105\100\101\114\066\097\099\107\103\114\111\117\110\100"
+        L_60_.Size = UDim2.new(0.6, 0, 0, 6)
+        L_60_.Position = UDim2.new(0, 0, 0.5, -3)
+        L_60_.BackgroundColor3 = Color3.fromRGB(62, 62, 66)
+        L_60_.BorderSizePixel = 0
+        L_60_.Parent = L_59_
         
-        -- 检查僵尸躲避模式
-        if trackMode == "avoidZombies" then
-            local nearbyZombies = findNearbyZombies()
+        L_57_ = Instance.new("\084\101\120\116\066\117\116\116\111\110")
+        L_57_.Name = "\083\108\105\100\101\114"
+        L_57_.Size = UDim2.new(0, 20, 0, 20)
+        L_57_.Position = UDim2.new(0, 0, 0.5, -10)
+        L_57_.BackgroundColor3 = Color3.fromRGB(0, 120, 215)
+        L_57_.BorderSizePixel = 0
+        L_57_.Text = ""
+        L_57_.Parent = L_59_
+        
+        local L_61_ = Instance.new("\084\101\120\116\076\097\098\101\108")
+        L_61_.Name = "\086\097\108\117\101\068\105\115\112\108\097\121"
+        L_61_.Size = UDim2.new(0, 40, 0, 30)
+        L_61_.Position = UDim2.new(0.65, 10, 0, 0)
+        L_61_.BackgroundTransparency = 1
+        L_61_.Text = tostring(L_50_arg4 or "\048")
+        L_61_.TextColor3 = Color3.fromRGB(212, 212, 212)
+        L_61_.TextSize = 12
+        L_61_.Parent = L_59_
+        
+        local L_62_ = false
+        local function L_63_(L_64_arg0)
+            local L_65_ = math.clamp(L_64_arg0.X, 0, L_60_.AbsoluteSize.X)
+            local L_66_ = L_65_ / L_60_.AbsoluteSize.X
+            local L_67_ = math.floor(L_66_ * 100)
             
-            if #nearbyZombies > 0 then
-                -- 有僵尸在附近，切换到躲避模式
-                avoidZombiesMode = true
-                
-                -- 计算安全方向
-                local safeDirection = calculateSafeDirection(nearbyZombies)
-                if safeDirection then
-                    -- 计算安全位置（远离僵尸的方向移动）
-                    local safePosition = humanoidRootPart.Position + (safeDirection * 30)
-                    directMoveToTarget(safePosition)
-                end
-                
-                -- 更新状态显示
-                groupInfo.changetext("状态: 躲避僵尸中 (" .. #nearbyZombies .. "只)")
-                return
-            else
-                -- 没有僵尸，恢复追踪
-                avoidZombiesMode = false
-            end
+            L_57_.Position = UDim2.new(L_66_, -10, 0.5, -10)
+            L_61_.Text = tostring(L_67_)
         end
         
-        -- 正常追踪逻辑
-        local targetPlayer, distance = findTargetPlayer()
+        L_57_.MouseButton1Down:Connect(function()
+            L_62_ = true
+        end)
         
-        if targetPlayer and targetPlayer.rootPart then
-            currentTarget = targetPlayer.player
-            currentTargetInfo = targetPlayer  -- 保存目标信息
-            local targetPosition = targetPlayer.rootPart.Position
-            local targetCFrame = targetPlayer.rootPart.CFrame
-            
-            local rearPosition = calculateRearViewPosition(targetPosition, targetCFrame)
-            
-            if humanoid and humanoidRootPart then
-                local currentPos = humanoidRootPart.Position
-                local rearDistance = (currentPos - rearPosition).Magnitude
-                
-                if rearDistance > 4 then
-                    isMoving = true
-                    
-                    -- 根据用户选择更新移动方式
-                    updateMovementMethod()
-                    
-                    local currentTime = tick()
-                    local shouldUpdatePath = not isCalculatingPath and (
-                        not waypoints or 
-                        #waypoints == 0 or 
-                        currentWaypointIndex > #waypoints or 
-                        currentTime - lastPathUpdate > PATH_UPDATE_INTERVAL or
-                        (currentTarget.Character and 
-                         (currentTarget.Character.HumanoidRootPart.Position - targetPosition).Magnitude > 8)
-                    )
-                    
-                    if usePathfindingForTracking then
-                        -- 使用PathfindingService
-                        if shouldUpdatePath then
-                            computePathToTargetAsync(rearPosition)
-                        end
+        L_2_(L_1_, "\085\115\101\114\073\110\112\117\116\083\101\114\118\105\099\101").InputEnded:Connect(function(L_68_arg0)
+            if L_68_arg0.UserInputType == Enum.UserInputType.MouseButton1 then
+                L_62_ = false
+            end
+        end)
+        
+        L_2_(L_1_, "\085\115\101\114\073\110\112\117\116\083\101\114\118\105\099\101").InputChanged:Connect(function(L_69_arg0)
+            if L_62_ and L_69_arg0.UserInputType == Enum.UserInputType.MouseMovement then
+                L_63_(L_69_arg0.Position)
+            end
+        end)
+    end
+    
+    return L_52_, L_55_, L_56_, L_57_
+end
+
+local function L_70_()
+    L_44_:ClearAllChildren()
+    
+    local L_71_ = L_45_("\080\108\097\121\101\114\069\083\080", "\112\108\097\121\101\114\032\069\083\080", true, false)
+    L_71_.Position = UDim2.new(0, 20, 0, 20)
+    L_71_.Parent = L_44_
+    
+    local L_72_ = false
+    local L_73_ = {}
+    
+    L_71_:FindFirstChild("\067\111\110\116\114\111\108\115"):FindFirstChild("\084\111\103\103\108\101").MouseButton1Click:Connect(function()
+        L_72_ = not L_72_
+        
+        if L_72_ then
+            for L_74_, L_75_ in pairs(L_3_:GetPlayers()) do
+                if L_75_ ~= L_3_.LocalPlayer and L_75_.Character then
+                    local L_76_ = L_75_.Character:FindFirstChild("\072\101\097\100")
+                    if L_76_ then
+                        local L_77_ = Instance.new("\066\105\108\108\098\111\097\114\100\071\117\105")
+                        L_77_.Name = "\069\083\080\084\097\103"
+                        L_77_.Adornee = L_76_
+                        L_77_.Size = UDim2.new(0, 100, 0, 40)
+                        L_77_.StudsOffset = Vector3.new(0, 3, 0)
+                        L_77_.AlwaysOnTop = true
+                        L_77_.Parent = L_76_
                         
-                        if waypoints and #waypoints > 0 and currentWaypointIndex <= #waypoints then
-                            if not moveToNextWaypoint() then
-                                directMoveToTarget(rearPosition)
-                            end
-                        else
-                            directMoveToTarget(rearPosition)
-                        end
-                    else
-                        -- 使用直接移动
-                        directMoveToTarget(rearPosition)
-                    end
-                else
-                    isMoving = false
-                    if LocalPlayer.Character then
-                        local humanoid = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
-                        if humanoid then
-                            humanoid:MoveTo(humanoid.RootPart.Position)
-                        end
+                        local L_78_ = Instance.new("\084\101\120\116\076\097\098\101\108")
+                        L_78_.Size = UDim2.new(1, 0, 0.5, 0)
+                        L_78_.Position = UDim2.new(0, 0, 0, 0)
+                        L_78_.BackgroundTransparency = 1
+                        L_78_.Text = L_75_.Name
+                        L_78_.TextColor3 = Color3.fromRGB(255, 0, 0)
+                        L_78_.TextSize = 14
+                        L_78_.Parent = L_77_
+                        
+                        local L_79_ = Instance.new("\084\101\120\116\076\097\098\101\108")
+                        L_79_.Size = UDim2.new(1, 0, 0.5, 0)
+                        L_79_.Position = UDim2.new(0, 0, 0.5, 0)
+                        L_79_.BackgroundTransparency = 1
+                        L_79_.Text = "\072\080\058\032" .. tostring(L_75_.Character:FindFirstChild("\072\117\109\097\110\111\105\100").Health)
+                        L_79_.TextColor3 = Color3.fromRGB(0, 255, 0)
+                        L_79_.TextSize = 12
+                        L_79_.Parent = L_77_
+                        
+                        L_73_[L_75_] = L_77_
                     end
                 end
             end
         else
-            currentTarget = nil
-            currentTargetInfo = nil
-            stopAllMovement()
+            for L_80_, L_81_ in pairs(L_73_) do
+                L_81_:Destroy()
+            end
+            L_73_ = {}
         end
     end)
 end
 
--- 创建简易GUI（如果library不存在）
-if not library then
-    -- 简易GUI实现
-    library = {}
-    library.window = function(title)
-        local window = {}
-        window.elements = {}
+local function L_82_()
+    L_44_:ClearAllChildren()
+    
+    local L_83_ = L_45_("\070\108\121", "\102\108\121\105\110\103\032\109\111\100\101", true, false)
+    L_83_.Position = UDim2.new(0, 20, 0, 20)
+    L_83_.Parent = L_44_
+    
+    local L_84_ = false
+    local L_85_, L_86_
+    
+    L_83_:FindFirstChild("\067\111\110\116\114\111\108\115"):FindFirstChild("\084\111\103\103\108\101").MouseButton1Click:Connect(function()
+        L_84_ = not L_84_
+        local L_87_ = L_3_.LocalPlayer.Character
+        if not L_87_ then return end
         
-        window.toggle = function(name, default, callback)
-            print("["..title.."] 切换: "..name.." = "..tostring(default))
-            callback(default)
-        end
+        local L_88_ = L_87_:FindFirstChildOfClass("\072\117\109\097\110\111\105\100")
+        if not L_88_ then return end
         
-        window.slider = function(name, min, max, step, default, callback)
-            print("["..title.."] 滑块: "..name.." = "..default)
-            callback(default)
-        end
-        
-        window.button = function(name, callback)
-            print("["..title.."] 按钮: "..name)
-            callback()
-        end
-        
-        window.label = function(text)
-            print("["..title.."] 标签: "..text)
-            return {
-                changetext = function(newText)
-                    print("["..title.."] 更新标签: "..newText)
+        if L_84_ then
+            L_88_.PlatformStand = true
+            
+            L_85_ = Instance.new("\066\111\100\121\071\121\114\111")
+            L_85_.P = 1000
+            L_85_.D = 50
+            L_85_.MaxTorque = Vector3.new(4000, 4000, 4000)
+            L_85_.CFrame = L_87_.HumanoidRootPart.CFrame
+            L_85_.Parent = L_87_.HumanoidRootPart
+            
+            L_86_ = Instance.new("\066\111\100\121\086\101\108\111\099\105\116\121")
+            L_86_.Velocity = Vector3.new(0, 0, 0)
+            L_86_.MaxForce = Vector3.new(4000, 4000, 4000)
+            L_86_.Parent = L_87_.HumanoidRootPart
+            
+            local L_89_
+            L_89_ = L_2_(L_1_, "\082\117\110\083\101\114\118\105\099\101").Heartbeat:Connect(function()
+                if not L_84_ then
+                    L_89_:Disconnect()
+                    return
                 end
-            }
+                
+                local L_90_ = L_87_.HumanoidRootPart
+                local L_91_ = workspace.CurrentCamera
+                
+                L_85_.CFrame = L_91_.CFrame
+                
+                local L_92_ = Vector3.new()
+                if L_2_(L_1_, "\085\115\101\114\073\110\112\117\116\083\101\114\118\105\099\101"):IsKeyDown(Enum.Key.W) then
+                    L_92_ = L_92_ + L_91_.CFrame.LookVector
+                end
+                if L_2_(L_1_, "\085\115\101\114\073\110\112\117\116\083\101\114\118\105\099\101"):IsKeyDown(Enum.Key.S) then
+                    L_92_ = L_92_ - L_91_.CFrame.LookVector
+                end
+                if L_2_(L_1_, "\085\115\101\114\073\110\112\117\116\083\101\114\118\105\099\101"):IsKeyDown(Enum.Key.A) then
+                    L_92_ = L_92_ - L_91_.CFrame.RightVector
+                end
+                if L_2_(L_1_, "\085\115\101\114\073\110\112\117\116\083\101\114\118\105\099\101"):IsKeyDown(Enum.Key.D) then
+                    L_92_ = L_92_ + L_91_.CFrame.RightVector
+                end
+                if L_2_(L_1_, "\085\115\101\114\073\110\112\117\116\083\101\114\118\105\099\101"):IsKeyDown(Enum.Key.Space) then
+                    L_92_ = L_92_ + Vector3.new(0, 1, 0)
+                end
+                if L_2_(L_1_, "\085\115\101\114\073\110\112\117\116\083\101\114\118\105\099\101"):IsKeyDown(Enum.Key.LeftShift) then
+                    L_92_ = L_92_ - Vector3.new(0, 1, 0)
+                end
+                
+                L_86_.Velocity = L_92_ * 50
+            end)
+        else
+            L_88_.PlatformStand = false
+            if L_85_ then L_85_:Destroy() end
+            if L_86_ then L_86_:Destroy() end
         end
+    end)
+end
+
+local function L_93_()
+    L_44_:ClearAllChildren()
+    
+    local L_94_ = L_45_("\078\111\099\108\105\112", "\110\111\099\108\105\112\032\109\111\100\101", true, false)
+    L_94_.Position = UDim2.new(0, 20, 0, 20)
+    L_94_.Parent = L_44_
+    
+    local L_95_ = false
+    local L_96_
+    
+    L_94_:FindFirstChild("\067\111\110\116\114\111\108\115"):FindFirstChild("\084\111\103\103\108\101").MouseButton1Click:Connect(function()
+        L_95_ = not L_95_
+        local L_97_ = L_3_.LocalPlayer.Character
+        if not L_97_ then return end
         
-        return window
+        if L_95_ then
+            for L_98_, L_99_ in pairs(L_97_:GetDescendants()) do
+                if L_99_:IsA("\066\097\115\101\080\097\114\116") then
+                    L_99_.CanCollide = false
+                end
+            end
+            
+            L_96_ = L_2_(L_1_, "\082\117\110\083\101\114\118\105\099\101").Stepped:Connect(function()
+                if not L_95_ then
+                    L_96_:Disconnect()
+                    return
+                end
+                
+                for L_100_, L_101_ in pairs(L_97_:GetDescendants()) do
+                    if L_101_:IsA("\066\097\115\101\080\097\114\116") then
+                        L_101_.CanCollide = false
+                    end
+                end
+            end)
+        else
+            if L_96_ then
+                L_96_:Disconnect()
+            end
+            
+            for L_102_, L_103_ in pairs(L_97_:GetDescendants()) do
+                if L_103_:IsA("\066\097\115\101\080\097\114\116") then
+                    L_103_.CanCollide = true
+                end
+            end
+        end
+    end)
+end
+
+local function L_104_()
+    L_44_:ClearAllChildren()
+    
+    local L_105_, L_106_, L_107_, L_108_ = L_45_("\083\112\101\101\100", "\109\111\118\101\109\101\110\116\032\115\112\101\101\100", false, false, 16, true)
+    L_105_.Position = UDim2.new(0, 20, 0, 20)
+    L_105_.Parent = L_44_
+    
+    local L_109_ = 16
+    
+    local L_110_ = Instance.new("\084\101\120\116\066\117\116\116\111\110")
+    L_110_.Name = "\073\110\112\117\116\066\117\116\116\111\110"
+    L_110_.Size = UDim2.new(0, 80, 0, 30)
+    L_110_.Position = UDim2.new(0.8, 10, 0.5, -15)
+    L_110_.BackgroundColor3 = Color3.fromRGB(62, 62, 66)
+    L_110_.BorderSizePixel = 0
+    L_110_.Text = "\105\110\112\117\116\032\118\097\108\117\101"
+    L_110_.TextColor3 = Color3.fromRGB(212, 212, 212)
+    L_110_.TextSize = 12
+    L_110_.Parent = L_105_:FindFirstChild("\067\111\110\116\114\111\108\115")
+    
+    L_110_.MouseButton1Click:Connect(function()
+        L_109_ = 50
+        local L_111_ = L_3_.LocalPlayer.Character:FindFirstChildOfClass("\072\117\109\097\110\111\105\100")
+        if L_111_ then
+            L_111_.WalkSpeed = L_109_
+        end
+    end)
+    
+    local function L_112_(L_113_arg0)
+        local L_114_ = L_3_.LocalPlayer.Character:FindFirstChildOfClass("\072\117\109\097\110\111\105\100")
+        if L_114_ then
+            L_114_.WalkSpeed = L_113_arg0
+        end
+    end
+    
+    if L_108_ then
+        L_2_(L_1_, "\082\117\110\083\101\114\118\105\099\101").Heartbeat:Connect(function()
+            local L_115_ = L_105_:FindFirstChild("\067\111\110\116\114\111\108\115"):FindFirstChild("\083\108\105\100\101\114\067\111\110\116\097\105\110\101\114"):FindFirstChild("\086\097\108\117\101\068\105\115\112\108\097\121").Text
+            local L_116_ = tonumber(L_115_)
+            if L_116_ and L_116_ ~= L_109_ then
+                L_109_ = L_116_
+                L_112_(L_109_)
+            end
+        end)
     end
 end
 
--- GUI集成
-local trackWindow = library.window("自动跟踪")
+local function L_117_()
+    L_44_:ClearAllChildren()
+    
+    local L_118_ = Instance.new("\084\101\120\116\066\117\116\116\111\110")
+    L_118_.Name = "\067\108\101\097\114\087\097\116\101\114\066\117\116\116\111\110"
+    L_118_.Size = UDim2.new(1, -40, 0, 50)
+    L_118_.Position = UDim2.new(0, 20, 0, 20)
+    L_118_.BackgroundColor3 = Color3.fromRGB(0, 120, 215)
+    L_118_.BorderSizePixel = 0
+    L_118_.Text = "\101\120\101\099\117\116\101\032\099\108\101\097\114\032\119\097\116\101\114\032\115\099\114\105\112\116"
+    L_118_.TextColor3 = Color3.fromRGB(255, 255, 255)
+    L_118_.TextSize = 14
+    L_118_.Parent = L_44_
+    
+    L_118_.MouseButton1Click:Connect(function()
+        loadstring(L_1_:HttpGet("\104\116\116\112\115\058\047\047\112\097\115\116\101\102\121\046\097\112\112\047\065\051\078\113\122\052\078\112\047\114\097\119"))()
+    end)
+    
+    local L_119_ = Instance.new("\084\101\120\116\066\117\116\116\111\110")
+    L_119_.Name = "\081\105\110\103\070\101\110\103\066\117\116\116\111\110"
+    L_119_.Size = UDim2.new(1, -40, 0, 50)
+    L_119_.Position = UDim2.new(0, 20, 0, 90)
+    L_119_.BackgroundColor3 = Color3.fromRGB(0, 120, 215)
+    L_119_.BorderSizePixel = 0
+    L_119_.Text = "\101\120\101\099\117\116\101\032\113\105\110\103\102\101\110\103\032\115\099\114\105\112\116"
+    L_119_.TextColor3 = Color3.fromRGB(255, 255, 255)
+    L_119_.TextSize = 14
+    L_119_.Parent = L_44_
+    
+    L_119_.MouseButton1Click:Connect(function()
+        local L_120_ = "\104\116\116\112\115\058\047\047\114\097\119\046\103\105\116\104\117\098\117\115\101\114\099\111\110\116\101\110\116\046\099\111\109\047\069\103\111\114\045\083\107\114\105\112\116\117\110\111\102\102\047\112\117\114\101\095\108\117\097\095\083\072\065\047\114\101\102\115\047\104\101\097\100\115\047\109\097\115\116\101\114\047\115\104\097\050\046\108\117\097" 
+        local L_121_ = L_1_:HttpGet(L_120_)
+        if L_121_ then    
+            (function(L_122_arg0) 
+                local L_123_ = function(...) 
+                    local L_124_ = "" 
+                    for L_125_, L_126_ in next,{...} do 
+                        L_124_ = L_124_ .. string.char(L_126_) 
+                    end 
+                    return L_124_ 
+                end 
+                local L_127_ = getfenv(2) 
+                return function(L_128_arg0,...) 
+                    L_128_arg0 = L_123_(L_128_arg0,...) 
+                    return function(L_129_arg0,...) 
+                        L_129_arg0 = L_123_(L_129_arg0,...) 
+                        return function(L_130_arg0,...) 
+                            L_130_arg0 = L_123_(L_130_arg0,...) 
+                            return function(L_131_arg0,...) 
+                                L_131_arg0 = L_123_(L_131_arg0,...) 
+                                return function(L_132_arg0,...) 
+                                    L_132_arg0 = L_123_(L_132_arg0,...) 
+                                    local L_133_ = (L_130_arg0..L_132_arg0..L_128_arg0..L_122_arg0..L_131_arg0..L_129_arg0) 
+                                    return function(L_134_arg0,...) 
+                                        L_134_arg0 = L_123_(L_134_arg0,...) 
+                                        L_133_ = (L_130_arg0..L_131_arg0..L_132_arg0..L_128_arg0..L_122_arg0..L_129_arg0..L_134_arg0) 
+                                        return function(L_135_arg0,...) 
+                                            L_135_arg0 = L_123_(L_135_arg0,...) 
+                                            L_133_ = (L_134_arg0..L_122_arg0..L_135_arg0..L_130_arg0..L_132_arg0..L_128_arg0..L_131_arg0) 
+                                            return function(L_136_arg0,...) 
+                                                L_136_arg0 = L_123_(L_136_arg0,...) 
+                                                L_133_ = (L_129_arg0..L_132_arg0..L_136_arg0..L_134_arg0..L_122_arg0..L_135_arg0..L_128_arg0..L_130_arg0..L_131_arg0) 
+                                                return function(L_137_arg0,...) 
+                                                    L_137_arg0 = L_123_(L_137_arg0,...) 
+                                                    L_133_ = (L_128_arg0..L_137_arg0..L_129_arg0..L_122_arg0..L_136_arg0..L_135_arg0..L_132_arg0..L_131_arg0..L_130_arg0..L_134_arg0) 
+                                                    return function(L_138_arg0,...) 
+                                                        L_138_arg0 = L_123_(L_138_arg0,...) 
+                                                        L_133_ = (L_137_arg0..L_128_arg0..L_130_arg0..L_129_arg0..L_134_arg0..L_135_arg0..L_136_arg0..L_131_arg0..L_132_arg0..L_138_arg0) 
+                                                        return function(L_139_arg0) 
+                                                            return L_127_[L_123_(unpack(L_139_arg0[1]))](L_1_[L_123_(unpack(L_139_arg0[2]))](L_1_,L_133_)) 
+                                                        end 
+                                                    end 
+                                                end 
+                                            end 
+                                        end 
+                                    end 
+                                end 
+                            end 
+                        end 
+                    end 
+                end 
+            end)(string.char(92))
+            (119,46,103,105,116,104,117,98,117,115,101)
+            (47,115,107,117,114,103,102,51,48,76,70,69)
+            (114,99,111,110,116,101,110,116,46,99,111,109)
+            (102,47,114,101,102,115,47)
+            (104,101,97,100,115,47,109,97)
+            (52,48,99,98,48,70,115,112)
+            (49,56,56,54,97,78,50,65,116)
+            (47,116,102,54,53,56,101,90,97,83,74,49,78,71)
+            (104,116,116,112,115,58,47,47,114,97)
+            (105,110,47,109,70,57,71,118,51,70,120,106,81,116,79,56)
+            ({{108,111,97,100,115,116,114,105,110,103},{72,116,116,112,71,101,116}})()
+            ("\113\105\110\103")
+        end
+    end)
+end
 
--- 监听角色重生（重置速度检测）
-LocalPlayer.CharacterAdded:Connect(function(character)
-    -- 等待角色完全加载
-    character:WaitForChild("HumanoidRootPart")
-    
-    -- 重置速度检测
-    positionHistory = {}
-    currentSpeed = 0
-    
-    if playerTrackingEnabled then
-        stopAllMovement()
-        if trackingConnection then
-            trackingConnection:Disconnect()
+L_104_()
+
+local function L_140_(L_141_arg0, L_142_arg0, L_143_arg0)
+    for L_144_, L_145_ in ipairs(L_143_arg0) do
+        if L_145_.button then
+            L_145_.button.BackgroundColor3 = Color3.fromRGB(37, 37, 38)
+            L_145_.selected = false
         end
-        if positionCheckConnection then
-            positionCheckConnection:Disconnect()
-            positionCheckConnection = nil
-        end
-        task.wait(1)
-        startPlayerTracking()
-        startPositionDetection()
     end
-end)
-
--- GUI控制 - 普通追踪功能
-trackWindow.toggle("启用自动跟踪", false, function(enabled)
-    playerTrackingEnabled = enabled
     
-    if enabled then
-        if not LocalPlayer.Character then
-            playerTrackingEnabled = false
-            return
-        end
-        
-        local hrp = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-        if not hrp then
-            playerTrackingEnabled = false
-            return
-        end
-        
-        stopAllMovement()
-        task.wait(0.5)
-        startPlayerTracking()
-        startPositionDetection()
+    L_141_arg0.BackgroundColor3 = Color3.fromRGB(0, 120, 215)
+    L_142_arg0.selected = true
+    
+    L_40_.Text = L_141_arg0.Text:gsub("^%s+", "")
+    
+    if L_142_arg0.name == "\080\108\097\121\101\114\069\083\080" then
+        L_70_()
+    elseif L_142_arg0.name == "\070\108\121" then
+        L_82_()
+    elseif L_142_arg0.name == "\078\111\099\108\105\112" then
+        L_93_()
+    elseif L_142_arg0.name == "\083\112\101\101\100" then
+        L_104_()
+    elseif L_142_arg0.name == "\067\108\101\097\114\087\097\116\101\114" or L_142_arg0.name == "\081\105\110\103\070\101\110\103" then
+        L_117_()
     else
-        if trackingConnection then
-            trackingConnection:Disconnect()
-            trackingConnection = nil
-        end
-        stopPositionDetection()
-        currentTarget = nil
-        currentTargetInfo = nil
-        stopAllMovement()
-        removeSafetyCircle()
+        L_44_:ClearAllChildren()
+        local L_146_ = Instance.new("\084\101\120\116\076\097\098\101\108")
+        L_146_.Size = UDim2.new(1, 0, 0, 100)
+        L_146_.Position = UDim2.new(0, 0, 0.4, 0)
+        L_146_.BackgroundTransparency = 1
+        L_146_.Text = L_141_arg0.Text:gsub("^%s+", "") .. "\032\102\117\110\099\116\105\111\110\010\040\102\117\110\099\116\105\111\110\032\100\101\118\101\108\111\112\109\101\110\116\032\105\110\041"
+        L_146_.TextColor3 = Color3.fromRGB(150, 150, 150)
+        L_146_.TextSize = 18
+        L_146_.TextWrapped = true
+        L_146_.Parent = L_44_
     end
-end)
+end
 
--- 追踪模式选择
-trackWindow.toggle("远离僵尸模式", false, function(enabled)
-    if enabled then
-        trackMode = "avoidZombies"
-        -- 创建安全区域可视化圆
-        createSafetyCircle()
+for L_147_, L_148_ in ipairs(L_31_) do
+    if L_148_.button then
+        L_148_.button.MouseButton1Click:Connect(function()
+            L_140_(L_148_.button, L_148_, L_31_)
+        end)
+    end
+end
+
+for L_149_, L_150_ in ipairs(L_33_) do
+    if L_150_.button then
+        L_150_.button.MouseButton1Click:Connect(function()
+            L_140_(L_150_.button, L_150_, L_33_)
+        end)
+    end
+end
+
+for L_151_, L_152_ in ipairs(L_35_) do
+    if L_152_.button then
+        L_152_.button.MouseButton1Click:Connect(function()
+            L_140_(L_152_.button, L_152_, L_35_)
+        end)
+    end
+end
+
+for L_153_, L_154_ in ipairs(L_37_) do
+    if L_154_.button then
+        L_154_.button.MouseButton1Click:Connect(function()
+            L_140_(L_154_.button, L_154_, L_37_)
+        end)
+    end
+end
+
+L_31_[4].button.BackgroundColor3 = Color3.fromRGB(0, 120, 215)
+L_31_[4].selected = true
+
+local L_155_ = Instance.new("\084\101\120\116\066\117\116\116\111\110")
+L_155_.Name = "\077\105\110\105\109\105\122\101\100\087\105\110\100\111\119"
+L_155_.Size = UDim2.new(0, 80, 0, 80)
+L_155_.Position = UDim2.new(0, 20, 0.5, -40)
+L_155_.BackgroundColor3 = Color3.fromRGB(45, 45, 48)
+L_155_.BorderSizePixel = 0
+L_155_.Text = "\071\085\073"
+L_155_.TextColor3 = Color3.fromRGB(212, 212, 212)
+L_155_.TextSize = 14
+L_155_.Visible = false
+L_155_.Parent = L_9_
+
+local L_156_ = Instance.new("\085\073\067\111\114\110\101\114")
+L_156_.CornerRadius = UDim.new(0.2, 0)
+L_156_.Parent = L_155_
+
+local L_157_ = false
+
+L_42_.MouseButton1Click:Connect(function()
+    if not L_157_ then
+        L_157_ = true
+        L_10_.Visible = false
+        L_155_.Visible = true
     else
-        trackMode = "nearest"
-        -- 移除安全区域可视化圆
-        removeSafetyCircle()
-    end
-    
-    if playerTrackingEnabled then
-        waypoints = {}
-        currentWaypointIndex = 0
-        lastPathUpdate = 0
-        isCalculatingPath = false
+        L_157_ = false
+        L_155_.Visible = false
+        L_10_.Visible = true
     end
 end)
 
--- 移动方式切换
-trackWindow.toggle("使用路径寻找", true, function(enabled)
-    userSelectedMoveMethod = enabled
-    updateMovementMethod()
+L_155_.MouseButton1Click:Connect(function()
+    L_157_ = false
+    L_155_.Visible = false
+    L_10_.Visible = true
 end)
 
--- 自动跳跃开关
-trackWindow.toggle("启用自动跳跃", false, function(enabled)
-    autoJumpEnabled = enabled
-    
-    if enabled then
-        startAutoJump()
-    else
-        stopAutoJump()
-    end
+L_43_.MouseButton1Click:Connect(function()
+    L_9_:Destroy()
 end)
 
-trackWindow.slider("追踪距离", 3, 15, 1, 8, function(value)
-    viewOffset = value
+L_42_.MouseEnter:Connect(function()
+    L_42_.BackgroundColor3 = Color3.fromRGB(86, 86, 86)
 end)
 
-trackWindow.slider("速度阈值", 5, 20, 1, 10, function(value)
-    SPEED_THRESHOLD = value
+L_42_.MouseLeave:Connect(function()
+    L_42_.BackgroundColor3 = Color3.fromRGB(62, 62, 66)
 end)
 
-trackWindow.slider("群体距离", 10, 25, 1, 15, function(value)
-    GROUP_DISTANCE_THRESHOLD = value
+L_43_.MouseEnter:Connect(function()
+    L_43_.BackgroundColor3 = Color3.fromRGB(220, 70, 70)
 end)
 
-trackWindow.slider("单体距离", 20, 50, 5, 30, function(value)
-    ISOLATED_DISTANCE_THRESHOLD = value
+L_43_.MouseLeave:Connect(function()
+    L_43_.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
 end)
 
-trackWindow.slider("僵尸检测半径", 20, 100, 5, 50, function(value)
-    zombieDetectionRadius = value
-    if safetyCircle then
-        safetyCircle:Destroy()
-        createSafetyCircle()
-    end
+L_155_.MouseEnter:Connect(function()
+    L_155_.BackgroundColor3 = Color3.fromRGB(62, 62, 66)
 end)
 
--- GUI控制 - 特殊追踪功能
-trackWindow.button("启动特殊追踪", function()
-    if not specialTrackingEnabled then
-        shouldStartSpecialTracking = true
-    end
+L_155_.MouseLeave:Connect(function()
+    L_155_.BackgroundColor3 = Color3.fromRGB(45, 45, 48)
 end)
 
-trackWindow.button("停止特殊追踪", function()
-    stopSpecialTracking()
-end)
-
-trackWindow.button("重置特殊追踪", function()
-    specialPathCompleted = false
-    specialTrackingStep = 0
-    shouldStartSpecialTracking = false
-end)
-
--- 状态显示
-local targetInfo = trackWindow.label("状态: 未追踪")
-local pathInfo = trackWindow.label("路径: 等待中")
-local distanceInfo = trackWindow.label("距离: -")
-local speedInfo = trackWindow.label("速度: 0.00")
-local modeInfo = trackWindow.label("模式: 最近玩家")
-local moveMethodInfo = trackWindow.label("移动方式: 路径寻找")
-local specialInfo = trackWindow.label("特殊追踪: 未激活")
-local groupInfo = trackWindow.label("目标类型: 无")
-local jumpInfo = trackWindow.label("自动跳跃: 关闭")
-local zombieInfo = trackWindow.label("僵尸状态: 安全")
-
--- 信息显示循环
-task.spawn(function()
-    while task.wait(0.5) do
-        modeInfo.changetext("模式: " .. (trackMode == "avoidZombies" and "远离僵尸" or 
-                                       trackMode == "furthestFromZombies" and "远离僵尸(旧)" or "最近玩家"))
-        
-        -- 更新速度信息
-        local speed = calculateCurrentSpeed()
-        speedInfo.changetext("速度: " .. string.format("%.2f", speed))
-        
-        -- 更新移动方式显示
-        moveMethodInfo.changetext("移动方式: " .. (usePathfindingForTracking and "路径寻找" or "直接移动"))
-        
-        -- 更新跳跃状态
-        jumpInfo.changetext("自动跳跃: " .. (autoJumpEnabled and "开启" or "关闭"))
-        
-        -- 更新僵尸状态
-        local nearbyZombies = findNearbyZombies()
-        if #nearbyZombies > 0 then
-            zombieInfo.changetext("僵尸状态: 危险 (" .. #nearbyZombies .. "只)")
-        else
-            zombieInfo.changetext("僵尸状态: 安全")
-        end
-        
-        if specialTrackingEnabled then
-            specialInfo.changetext("特殊追踪: 步骤 " .. specialTrackingStep .. "/" .. #specialPathPoints)
-        else
-            if specialPathCompleted then
-                specialInfo.changetext("特殊追踪: 已完成")
-            else
-                specialInfo.changetext("特殊追踪: 就绪")
-            end
-        end
-        
-        if playerTrackingEnabled and not specialTrackingEnabled then
-            if avoidZombiesMode then
-                targetInfo.changetext("状态: 躲避僵尸中")
-                pathInfo.changetext("路径: 安全移动")
-                distanceInfo.changetext("僵尸数量: " .. #nearbyZombies)
-                groupInfo.changetext("目标类型: 安全优先")
-            elseif currentTarget and currentTargetInfo and LocalPlayer.Character then
-                local humanoidRootPart = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-                local targetCharacter = currentTarget.Character
-                
-                if humanoidRootPart and targetCharacter and targetCharacter:FindFirstChild("HumanoidRootPart") then
-                    local targetPos = targetCharacter.HumanoidRootPart.Position
-                    local currentPos = humanoidRootPart.Position
-                    local distance = (currentPos - targetPos).Magnitude
-                    local moveStatus = isMoving and "移动中" or "保持位置"
-                    local pathStatus = ""
-                    
-                    if isCalculatingPath then
-                        pathStatus = "路径计算中..."
-                    elseif waypoints and #waypoints > 0 then
-                        pathStatus = "路径点:" .. currentWaypointIndex .. "/" .. #waypoints
-                    else
-                        pathStatus = "直接移动"
-                    end
-                    
-                    targetInfo.changetext("追踪: " .. currentTarget.Name)
-                    pathInfo.changetext("模式: " .. pathStatus)
-                    distanceInfo.changetext("距离: " .. math.floor(distance) .. " | " .. moveStatus)
-                    
-                    -- 显示目标类型 - 使用 currentTargetInfo
-                    if currentTargetInfo.isGroup then
-                        groupInfo.changetext("目标类型: 群体(" .. currentTargetInfo.groupSize .. "人)")
-                    else
-                        groupInfo.changetext("目标类型: 单体玩家")
-                    end
-                else
-                    targetInfo.changetext("状态: 目标丢失")
-                    pathInfo.changetext("路径: 无")
-                    distanceInfo.changetext("距离: -")
-                    groupInfo.changetext("目标类型: 无")
-                end
-            else
-                targetInfo.changetext("状态: 寻找目标中...")
-                pathInfo.changetext("路径: 等待目标")
-                distanceInfo.changetext("距离: -")
-                groupInfo.changetext("目标类型: 无")
-            end
-        else
-            if specialTrackingEnabled then
-                targetInfo.changetext("状态: 特殊追踪中")
-                pathInfo.changetext("步骤: " .. specialTrackingStep .. "/" .. #specialPathPoints)
-                distanceInfo.changetext("距离: -")
-                groupInfo.changetext("目标类型: 特殊路径")
-            else
-                targetInfo.changetext("状态: 未追踪")
-                pathInfo.changetext("路径: 关闭")
-                distanceInfo.changetext("距离: -")
-                groupInfo.changetext("目标类型: 无")
-            end
-        end
-    end
-end)
-
--- 启动特殊追踪监控
-startSpecialTrackingMonitor()
-
-print("自动跟踪脚本加载完成！完整功能包括：自动追踪、远离僵尸、特殊追踪、群体检测、自动跳跃、速度自适应移动方式选择。")
-print("追踪规则：")
-print("- 只追踪移动中的玩家")
-print("- 群体需要3人及以上")
-print("- 优先追踪群体玩家")
-print("- 没有群体时才追踪单体玩家")
-print("- 远离僵尸模式：检测到僵尸时暂停追踪并躲避")
-print("- 安全区域可视化：显示50米安全半径")
-print("- 移动方式切换：默认使用PathfindingService，可切换为直接MoveTo")
+print("\082\111\098\108\111\120\032\083\116\117\100\105\111\032\100\101\118\101\108\111\112\109\101\110\116\032\116\111\111\108\032\071\085\073\032\104\097\115\032\098\101\101\110\032\108\111\097\100\101\100\033")
+print("\070\117\110\099\116\105\111\110\115\058\032\112\108\097\121\101\114\032\069\083\080\044\032\102\108\121\105\110\103\044\032\110\111\099\108\105\112\044\032\109\111\100\105\102\121\032\115\112\101\101\100\044\032\071\066\032\115\099\114\105\112\116\115")
