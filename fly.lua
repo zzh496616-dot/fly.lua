@@ -40,7 +40,7 @@ injectionText.Name = "InjectionText"
 injectionText.Size = UDim2.new(1, 0, 0, 100)
 injectionText.Position = UDim2.new(0, 0, 0.5, -50)
 injectionText.BackgroundTransparency = 1
-injectionText.Text = "义和团发力中..."
+injectionText.Text = "义和团自动瞄准注入中..."
 injectionText.Font = Enum.Font.GothamBold
 injectionText.TextSize = 36
 injectionText.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -118,7 +118,7 @@ local function showInjectionAnimation()
     
     local function updateStepText()
         if stepIndex <= totalSteps then
-            injectionText.Text = "义和团刀枪不入😡\n" .. loadSteps[stepIndex]
+            injectionText.Text = "义和团自动瞄准\n" .. loadSteps[stepIndex]
             stepIndex = stepIndex + 1
             
             -- 改变进度条颜色
@@ -1228,8 +1228,8 @@ totalHeight = totalHeight + 55 + 5
 -- 2. 炸药桶瞄准开关
 local barrelBtn, toggleBarrel = createSimpleToggle(
     "BarrelAim",
-    "瞄准bomber",
-    "B.G.K.最爱",
+    "瞄准炸药桶",
+    "瞄准游戏中的炸药桶",
     Color3.fromRGB(220, 120, 60),
     flags.AimBarrel,
     function(val)
@@ -1557,7 +1557,7 @@ local function toggleMinimize()
         tween:Play()
         
         contentArea.Visible = true
-        titleLabel.Text = "义和团自动瞄准"
+        titleLabel.Text = "刀枪不入来灭洋"
         titleLabel.Size = UDim2.new(0.6, 0, 1, 0)
         titleLabel.Position = UDim2.new(0.05, 0, 0, 0)
         closeButton.Visible = true
@@ -1666,7 +1666,7 @@ end)
 local rainbowConnection
 rainbowConnection = RunService.RenderStepped:Connect(updateRainbowText)
 
-print("=== 义和团扶清灭洋UI加载完成 ===")
+print("=== 义和团自动瞄准UI加载完成 ===")
 print("UI位置: 屏幕中央")
 print("UI尺寸: 340x420 正方形")
 print("包含功能:")
