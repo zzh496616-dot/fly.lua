@@ -1557,7 +1557,7 @@ local function toggleMinimize()
         tween:Play()
         
         contentArea.Visible = true
-        titleLabel.Text = "法🥶英美德俄💀"
+        titleLabel.Text = "义和团自动瞄准"
         titleLabel.Size = UDim2.new(0.6, 0, 1, 0)
         titleLabel.Position = UDim2.new(0.05, 0, 0, 0)
         closeButton.Visible = true
