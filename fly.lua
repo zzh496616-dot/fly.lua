@@ -118,7 +118,7 @@ local function showInjectionAnimation()
     
     local function updateStepText()
         if stepIndex <= totalSteps then
-            injectionText.Text = "扶清灭洋义不容辞\n" .. loadSteps[stepIndex]
+            injectionText.Text = "义和团自动瞄准\n" .. loadSteps[stepIndex]
             stepIndex = stepIndex + 1
             
             -- 改变进度条颜色
@@ -1557,7 +1557,7 @@ local function toggleMinimize()
         tween:Play()
         
         contentArea.Visible = true
-        titleLabel.Text = "扶清灭洋义不容辞"
+        titleLabel.Text = "义和团自动瞄准"
         titleLabel.Size = UDim2.new(0.6, 0, 1, 0)
         titleLabel.Position = UDim2.new(0.05, 0, 0, 0)
         closeButton.Visible = true
