@@ -118,7 +118,7 @@ local function showInjectionAnimation()
     
     local function updateStepText()
         if stepIndex <= totalSteps then
-            injectionText.Text = "义和团自动瞄准\n" .. loadSteps[stepIndex]
+            injectionText.Text = "义和团刀枪不入😡\n" .. loadSteps[stepIndex]
             stepIndex = stepIndex + 1
             
             -- 改变进度条颜色
@@ -1201,7 +1201,6 @@ local mainToggleBtn, toggleMain = createSimpleToggle(
     "MainToggle",
     "自动瞄准",
     "开启/关闭自动瞄准系统",
-    "🎯",
     Color3.fromRGB(60, 150, 220),
     flags.StartShoot,
     function(val)
@@ -1229,9 +1228,8 @@ totalHeight = totalHeight + 55 + 5
 -- 2. 炸药桶瞄准开关
 local barrelBtn, toggleBarrel = createSimpleToggle(
     "BarrelAim",
-    "瞄准炸药桶",
-    "瞄准游戏中的炸药桶",
-    "💣",
+    "瞄准bomber",
+    "B.G.K.最爱",
     Color3.fromRGB(220, 120, 60),
     flags.AimBarrel,
     function(val)
@@ -1250,7 +1248,6 @@ local bossBtn, toggleBoss = createSimpleToggle(
     "BossAim",
     "瞄准Boss",
     "瞄准游戏中的Boss",
-    "👹",
     Color3.fromRGB(180, 60, 220),
     flags.AimBoss,
     function(val)
@@ -1269,7 +1266,6 @@ local predictionBtn, togglePrediction = createSimpleToggle(
     "Prediction",
     "预测瞄准",
     "预测目标移动位置",
-    "🔮",
     Color3.fromRGB(150, 220, 60),
     flags.UsePrediction,
     function(val)
@@ -1287,7 +1283,6 @@ local raycastBtn, toggleRaycast = createSimpleToggle(
     "Raycast",
     "射线检测",
     "检测障碍物可见性",
-    "🔍",
     Color3.fromRGB(60, 220, 180),
     flags.UseRaycast,
     function(val)
@@ -1305,7 +1300,6 @@ local armedOnlyBtn, toggleArmedOnly = createSimpleToggle(
     "ArmedOnly",
     "仅持枪瞄准",
     "只有在持有枪支时瞄准",
-    "🔫",
     Color3.fromRGB(220, 60, 120),
     flags.OnlyWhenArmed,
     function(val)
@@ -1323,7 +1317,6 @@ local autoUpdateBtn, toggleAutoUpdate = createSimpleToggle(
     "AutoUpdate",
     "自动更新缓存",
     "自动更新目标缓存",
-    "🔄",
     Color3.fromRGB(120, 60, 220),
     flags.AutoUpdateCache,
     function(val)
@@ -1341,7 +1334,6 @@ local distanceSlider = createValueInputWithSlider(
     "MaxDistance",
     "最大距离",
     "瞄准最大距离(米)",
-    "📏",
     Color3.fromRGB(220, 200, 60),
     100,
     2000,
@@ -1361,7 +1353,6 @@ local smoothSlider = createValueInputWithSlider(
     "SmoothAim",
     "平滑瞄准",
     "瞄准平滑度(0.1-1.0)",
-    "🎛️",
     Color3.fromRGB(100, 60, 220),
     0.1,
     1.0,
@@ -1381,7 +1372,6 @@ local predictionTimeInput = createValueInput(
     "PredictionTime",
     "预测时间",
     "瞄准预测时间(秒)",
-    "⏱️",
     Color3.fromRGB(60, 180, 220),
     0.1,
     1.0,
@@ -1401,7 +1391,6 @@ local scanIntervalInput = createValueInput(
     "ScanInterval",
     "扫描间隔",
     "目标扫描间隔(秒)",
-    "📡",
     Color3.fromRGB(220, 100, 60),
     1,
     10,
@@ -1421,7 +1410,6 @@ local viewAngleInput = createValueInput(
     "ViewAngle",
     "视角角度",
     "瞄准视角角度(度)",
-    "📐",
     Color3.fromRGB(60, 220, 120),
     30,
     180,
@@ -1551,7 +1539,7 @@ local function toggleMinimize()
         tween:Play()
         
         contentArea.Visible = false
-        titleLabel.Text = "菜单(点击展开)"
+        titleLabel.Text = "神仙下山把道传"
         titleLabel.Size = UDim2.new(0.9, 0, 1, 0)
         titleLabel.Position = UDim2.new(0.05, 0, 0, 0)
         closeButton.Visible = false
@@ -1569,7 +1557,7 @@ local function toggleMinimize()
         tween:Play()
         
         contentArea.Visible = true
-        titleLabel.Text = "义和团自动瞄准"
+        titleLabel.Text = "法🥶英美德俄💀"
         titleLabel.Size = UDim2.new(0.6, 0, 1, 0)
         titleLabel.Position = UDim2.new(0.05, 0, 0, 0)
         closeButton.Visible = true
@@ -1678,7 +1666,7 @@ end)
 local rainbowConnection
 rainbowConnection = RunService.RenderStepped:Connect(updateRainbowText)
 
-print("=== 义和团自动瞄准UI加载完成 ===")
+print("=== 义和团扶清灭洋UI加载完成 ===")
 print("UI位置: 屏幕中央")
 print("UI尺寸: 340x420 正方形")
 print("包含功能:")
