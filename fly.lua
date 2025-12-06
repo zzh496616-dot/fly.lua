@@ -1,46 +1,216 @@
--- 义和团自动瞄准完整UI（修复滑块，保持完整功能）
+-- 义和团自动瞄准UI（完整功能版 + 注入动画 + 可输入）
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
+local Workspace = game:GetService("Workspace")
+local TextService = game:GetService("TextService")
 
+-- 检查是否在客户端运行
+if not RunService:IsClient() then
+    error("这个脚本必须在客户端运行！请放在StarterPlayerScripts中。")
+    return
+end
+
+-- 等待玩家加载
 local player = Players.LocalPlayer
+if not player then
+    player = Players:GetPropertyChangedSignal("LocalPlayer"):Wait()
+    player = Players.LocalPlayer
+end
+
+-- 等待PlayerGui加载
 local playerGui = player:WaitForChild("PlayerGui")
+print("PlayerGui已加载")
+
+-- 创建注入动画背景
+local injectionOverlay = Instance.new("Frame")
+injectionOverlay.Name = "InjectionOverlay"
+injectionOverlay.Size = UDim2.new(1, 0, 1, 0)
+injectionOverlay.Position = UDim2.new(0, 0, 0, 0)
+injectionOverlay.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+injectionOverlay.BackgroundTransparency = 0.8
+injectionOverlay.ZIndex = 999
+injectionOverlay.Visible = false
+injectionOverlay.Parent = playerGui
+
+-- 创建注入动画文本
+local injectionText = Instance.new("TextLabel")
+injectionText.Name = "InjectionText"
+injectionText.Size = UDim2.new(1, 0, 0, 100)
+injectionText.Position = UDim2.new(0, 0, 0.5, -50)
+injectionText.BackgroundTransparency = 1
+injectionText.Text = "义和团发力中..."
+injectionText.Font = Enum.Font.GothamBold
+injectionText.TextSize = 36
+injectionText.TextColor3 = Color3.fromRGB(255, 255, 255)
+injectionText.TextStrokeTransparency = 0.5
+injectionText.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+injectionText.ZIndex = 1000
+injectionText.Visible = false
+injectionText.Parent = injectionOverlay
+
+-- 创建进度条容器
+local progressContainer = Instance.new("Frame")
+progressContainer.Name = "ProgressContainer"
+progressContainer.Size = UDim2.new(0.4, 0, 0, 20)
+progressContainer.Position = UDim2.new(0.3, 0, 0.5, 30)
+progressContainer.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+progressContainer.BorderSizePixel = 0
+progressContainer.ZIndex = 1000
+progressContainer.Visible = false
+
+local progressCorner = Instance.new("UICorner")
+progressCorner.CornerRadius = UDim.new(1, 0)
+progressCorner.Parent = progressContainer
+
+-- 创建进度条
+local progressBar = Instance.new("Frame")
+progressBar.Name = "ProgressBar"
+progressBar.Size = UDim2.new(0, 0, 1, 0)
+progressBar.Position = UDim2.new(0, 0, 0, 0)
+progressBar.BackgroundColor3 = Color3.fromHSV(0.3, 0.8, 1)
+progressBar.BorderSizePixel = 0
+progressBar.ZIndex = 1001
+
+local progressBarCorner = Instance.new("UICorner")
+progressBarCorner.CornerRadius = UDim.new(1, 0)
+progressBarCorner.Parent = progressBar
+
+progressBar.Parent = progressContainer
+progressContainer.Parent = injectionOverlay
+
+-- 显示注入动画
+local function showInjectionAnimation()
+    injectionOverlay.Visible = true
+    injectionText.Visible = true
+    progressContainer.Visible = true
+    
+    -- 重置进度条
+    progressBar.Size = UDim2.new(0, 0, 1, 0)
+    
+    -- 彩虹文本效果
+    local hue = 0
+    local rainbowConnection
+    rainbowConnection = RunService.Heartbeat:Connect(function()
+        hue = (hue + 0.02) % 1
+        injectionText.TextColor3 = Color3.fromHSV(hue, 0.8, 1)
+    end)
+    
+    -- 进度条动画
+    local progressTweenInfo = TweenInfo.new(1.5, Enum.EasingStyle.Linear)
+    local progressTween = TweenService:Create(progressBar, progressTweenInfo, {
+        Size = UDim2.new(1, 0, 1, 0)
+    })
+    
+    -- 加载步骤文本
+    local loadSteps = {
+        "初始化UI系统...",
+        "加载瞄准模块...",
+        "设置缓存系统...",
+        "连接事件处理器...",
+        "注入完成！"
+    }
+    
+    local stepIndex = 1
+    local totalSteps = #loadSteps
+    local stepDuration = 1.5 / totalSteps
+    
+    local function updateStepText()
+        if stepIndex <= totalSteps then
+            injectionText.Text = "义和团自动瞄准\n" .. loadSteps[stepIndex]
+            stepIndex = stepIndex + 1
+            
+            -- 改变进度条颜色
+            progressBar.BackgroundColor3 = Color3.fromHSV(stepIndex * 0.15, 0.8, 1)
+        end
+    end
+    
+    -- 开始动画
+    progressTween:Play()
+    
+    -- 定时更新步骤
+    local stepTimer = 0
+    local lastTime = tick()
+    
+    local updateConnection
+    updateConnection = RunService.Heartbeat:Connect(function()
+        local currentTime = tick()
+        local delta = currentTime - lastTime
+        lastTime = currentTime
+        
+        stepTimer = stepTimer + delta
+        if stepTimer >= stepDuration then
+            stepTimer = 0
+            updateStepText()
+        end
+    end)
+    
+    -- 动画完成后隐藏
+    progressTween.Completed:Connect(function()
+        if rainbowConnection then
+            rainbowConnection:Disconnect()
+            rainbowConnection = nil
+        end
+        
+        if updateConnection then
+            updateConnection:Disconnect()
+            updateConnection = nil
+        end
+        
+        -- 完成动画
+        local completionTween = TweenService:Create(injectionOverlay, TweenInfo.new(0.5), {
+            BackgroundTransparency = 1
+        })
+        
+        completionTween:Play()
+        
+        completionTween.Completed:Connect(function()
+            injectionOverlay:Destroy()
+            print("注入动画完成！")
+        end)
+    end)
+end
 
 -- 创建主屏幕GUI
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "义和团UI"
 screenGui.ResetOnSpawn = false
 screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+screenGui.Enabled = true
+
+print("创建ScreenGui")
 
 -- 创建正方形主窗口
 local mainFrame = Instance.new("Frame")
 mainFrame.Name = "MainFrame"
-mainFrame.Size = UDim2.new(0, 280, 0, 320)
-mainFrame.Position = UDim2.new(0.5, -140, 0.5, -160)
+mainFrame.Size = UDim2.new(0, 340, 0, 420)
+mainFrame.Position = UDim2.new(0.5, -170, 0.5, -210)
 mainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
 mainFrame.BackgroundTransparency = 0.2
 mainFrame.BorderSizePixel = 0
 mainFrame.ClipsDescendants = true
-mainFrame.Active = true
+mainFrame.Visible = true
+
+print("创建MainFrame")
 
 -- 圆角效果
 local uiCorner = Instance.new("UICorner")
-uiCorner.CornerRadius = UDim.new(0, 10)
+uiCorner.CornerRadius = UDim.new(0, 12)
 uiCorner.Parent = mainFrame
 
 -- 标题栏
 local titleBar = Instance.new("Frame")
 titleBar.Name = "TitleBar"
-titleBar.Size = UDim2.new(1, 0, 0, 35)
+titleBar.Size = UDim2.new(1, 0, 0, 40)
 titleBar.Position = UDim2.new(0, 0, 0, 0)
 titleBar.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
 titleBar.BackgroundTransparency = 0.1
 titleBar.BorderSizePixel = 0
-titleBar.Active = true
+titleBar.Visible = true
 
 local titleBarCorner = Instance.new("UICorner")
-titleBarCorner.CornerRadius = UDim.new(0, 10, 0, 0)
+titleBarCorner.CornerRadius = UDim.new(0, 12, 0, 0)
 titleBarCorner.Parent = titleBar
 
 -- 标题文本（彩虹效果）
@@ -49,18 +219,19 @@ titleLabel.Name = "TitleLabel"
 titleLabel.Size = UDim2.new(0.6, 0, 1, 0)
 titleLabel.Position = UDim2.new(0.05, 0, 0, 0)
 titleLabel.BackgroundTransparency = 1
-titleLabel.Text = "义和团"
-titleLabel.TextScaled = true
+titleLabel.Text = "义和团扶清灭洋"
 titleLabel.Font = Enum.Font.GothamBold
+titleLabel.TextSize = 18
 titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 titleLabel.TextStrokeTransparency = 0.7
 titleLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+titleLabel.Visible = true
 
 -- 关闭按钮
 local closeButton = Instance.new("TextButton")
 closeButton.Name = "CloseButton"
-closeButton.Size = UDim2.new(0, 25, 0, 25)
-closeButton.Position = UDim2.new(1, -30, 0.5, -12.5)
+closeButton.Size = UDim2.new(0, 28, 0, 28)
+closeButton.Position = UDim2.new(1, -32, 0.5, -14)
 closeButton.BackgroundColor3 = Color3.fromRGB(220, 60, 60)
 closeButton.BackgroundTransparency = 0.3
 closeButton.Text = "×"
@@ -68,6 +239,7 @@ closeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 closeButton.TextScaled = true
 closeButton.Font = Enum.Font.GothamBold
 closeButton.AutoButtonColor = false
+closeButton.Visible = true
 
 local closeButtonCorner = Instance.new("UICorner")
 closeButtonCorner.CornerRadius = UDim.new(1, 0)
@@ -76,8 +248,8 @@ closeButtonCorner.Parent = closeButton
 -- 缩放按钮
 local scaleButton = Instance.new("TextButton")
 scaleButton.Name = "ScaleButton"
-scaleButton.Size = UDim2.new(0, 25, 0, 25)
-scaleButton.Position = UDim2.new(1, -60, 0.5, -12.5)
+scaleButton.Size = UDim2.new(0, 28, 0, 28)
+scaleButton.Position = UDim2.new(1, -65, 0.5, -14)
 scaleButton.BackgroundColor3 = Color3.fromRGB(60, 120, 220)
 scaleButton.BackgroundTransparency = 0.3
 scaleButton.Text = "↔"
@@ -85,6 +257,7 @@ scaleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 scaleButton.TextScaled = true
 scaleButton.Font = Enum.Font.GothamBold
 scaleButton.AutoButtonColor = false
+scaleButton.Visible = true
 
 local scaleButtonCorner = Instance.new("UICorner")
 scaleButtonCorner.CornerRadius = UDim.new(1, 0)
@@ -93,15 +266,16 @@ scaleButtonCorner.Parent = scaleButton
 -- 创建内容区域
 local contentArea = Instance.new("Frame")
 contentArea.Name = "ContentArea"
-contentArea.Size = UDim2.new(1, -10, 1, -45)
-contentArea.Position = UDim2.new(0, 5, 0, 40)
+contentArea.Size = UDim2.new(1, -10, 1, -50)
+contentArea.Position = UDim2.new(0, 5, 0, 45)
 contentArea.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
 contentArea.BackgroundTransparency = 0.3
 contentArea.BorderSizePixel = 0
 contentArea.ClipsDescendants = true
+contentArea.Visible = true
 
 local contentCorner = Instance.new("UICorner")
-contentCorner.CornerRadius = UDim.new(0, 6)
+contentCorner.CornerRadius = UDim.new(0, 8)
 contentCorner.Parent = contentArea
 
 -- 创建滚动容器
@@ -111,11 +285,14 @@ scrollingFrame.Size = UDim2.new(1, 0, 1, 0)
 scrollingFrame.Position = UDim2.new(0, 0, 0, 0)
 scrollingFrame.BackgroundTransparency = 1
 scrollingFrame.BorderSizePixel = 0
-scrollingFrame.ScrollBarThickness = 4
+scrollingFrame.ScrollBarThickness = 6
 scrollingFrame.ScrollBarImageColor3 = Color3.fromRGB(100, 100, 120)
 scrollingFrame.ScrollBarImageTransparency = 0.5
 scrollingFrame.ScrollingDirection = Enum.ScrollingDirection.Y
 scrollingFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+scrollingFrame.Visible = true
+
+print("创建滚动容器")
 
 -- 创建功能列表容器
 local functionsContainer = Instance.new("Frame")
@@ -123,34 +300,39 @@ functionsContainer.Name = "FunctionsContainer"
 functionsContainer.Size = UDim2.new(1, 0, 0, 0)
 functionsContainer.Position = UDim2.new(0, 0, 0, 0)
 functionsContainer.BackgroundTransparency = 1
+functionsContainer.Visible = true
 
--- ============================================
--- 根据您的原始脚本，这是一个完整的自动瞄准系统
--- 包含了以下所有子功能和复杂逻辑：
--- 1. 主开关功能
--- 2. 炸药桶检测和瞄准
--- 3. Boss检测和瞄准  
--- 4. 预测瞄准系统
--- 5. 射线检测系统
--- 6. 透明墙检测系统
--- 7. 视角限制系统
--- 8. 武器检测系统
--- 9. 历史位置跟踪系统
--- 10. 缓存优化系统
--- ============================================
-
--- 全局变量
+-- 创建全局变量和标志
 local flags = {
-    StartShoot = false,  -- 主开关
-    MaxDistance = 1000,  -- 最大距离
-    SmoothAim = 0.3,     -- 平滑度
-    PredictionTime = 0.2, -- 预测时间
-    ScanInterval = 2,    -- 扫描间隔
-    ViewAngle = 90       -- 视角角度
+    StartShoot = false,
+    MaxDistance = 1000,
+    SmoothAim = 0.3,
+    PredictionTime = 0.2,
+    ScanInterval = 2,
+    ViewAngle = 90,
+    AimBarrel = true,
+    AimBoss = true,
+    UsePrediction = true,
+    UseRaycast = true,
+    AutoUpdateCache = true,
+    OnlyWhenArmed = true
 }
 
--- 创建开关按钮
-local function createToggleButton(name, text, description, icon, color, defaultState, callback)
+-- 自动瞄准系统变量
+local cameraLockConnection = nil
+local barrelCache = {}
+local bossCache = {}
+local transparentParts = {}
+local targetHistory = {}
+local char = nil
+local currentCamera = Workspace.CurrentCamera
+local zombiesFolder = nil
+local playersFolder = nil
+
+print("创建全局变量")
+
+-- 创建简单的切换按钮（修复版）
+local function createSimpleToggle(name, text, description, icon, color, defaultState, callback)
     local button = Instance.new("TextButton")
     button.Name = name
     button.Size = UDim2.new(1, -8, 0, 55)
@@ -159,6 +341,7 @@ local function createToggleButton(name, text, description, icon, color, defaultS
     button.BackgroundTransparency = 0.2
     button.Text = ""
     button.AutoButtonColor = false
+    button.Visible = true
     
     local buttonCorner = Instance.new("UICorner")
     buttonCorner.CornerRadius = UDim.new(0, 6)
@@ -172,8 +355,9 @@ local function createToggleButton(name, text, description, icon, color, defaultS
     iconLabel.BackgroundTransparency = 1
     iconLabel.Text = icon
     iconLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-    iconLabel.TextScaled = true
     iconLabel.Font = Enum.Font.GothamBold
+    iconLabel.TextSize = 18
+    iconLabel.Visible = true
     
     -- 标题
     local titleLabel = Instance.new("TextLabel")
@@ -183,9 +367,10 @@ local function createToggleButton(name, text, description, icon, color, defaultS
     titleLabel.BackgroundTransparency = 1
     titleLabel.Text = text
     titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-    titleLabel.TextScaled = true
     titleLabel.Font = Enum.Font.GothamBold
+    titleLabel.TextSize = 14
     titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+    titleLabel.Visible = true
     
     -- 描述
     local descLabel = Instance.new("TextLabel")
@@ -195,9 +380,10 @@ local function createToggleButton(name, text, description, icon, color, defaultS
     descLabel.BackgroundTransparency = 1
     descLabel.Text = description
     descLabel.TextColor3 = Color3.fromRGB(200, 200, 220)
-    descLabel.TextScaled = true
     descLabel.Font = Enum.Font.Gotham
+    descLabel.TextSize = 12
     descLabel.TextXAlignment = Enum.TextXAlignment.Left
+    descLabel.Visible = true
     
     -- 切换开关
     local toggleFrame = Instance.new("Frame")
@@ -207,6 +393,7 @@ local function createToggleButton(name, text, description, icon, color, defaultS
     toggleFrame.BackgroundColor3 = defaultState and Color3.fromRGB(60, 220, 60) or Color3.fromRGB(120, 120, 120)
     toggleFrame.BackgroundTransparency = 0.2
     toggleFrame.BorderSizePixel = 0
+    toggleFrame.Visible = true
     
     local toggleCorner = Instance.new("UICorner")
     toggleCorner.CornerRadius = UDim.new(1, 0)
@@ -219,6 +406,7 @@ local function createToggleButton(name, text, description, icon, color, defaultS
     toggleCircle.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
     toggleCircle.BackgroundTransparency = 0
     toggleCircle.BorderSizePixel = 0
+    toggleCircle.Visible = true
     
     local toggleCircleCorner = Instance.new("UICorner")
     toggleCircleCorner.CornerRadius = UDim.new(1, 0)
@@ -272,66 +460,96 @@ local function createToggleButton(name, text, description, icon, color, defaultS
     toggleCircle.Parent = toggleFrame
     toggleFrame.Parent = button
     
-    return button, toggleState, function() return isEnabled end
+    return button, toggleState
 end
 
--- 修复的滑块控件（简单版本，更容易滑动）
-local function createSimpleSlider(name, text, description, icon, color, minValue, maxValue, defaultValue, callback)
-    local button = Instance.new("TextButton")
-    button.Name = name
-    button.Size = UDim2.new(1, -8, 0, 65)
-    button.Position = UDim2.new(0, 4, 0, 0)
-    button.BackgroundColor3 = color
-    button.BackgroundTransparency = 0.2
-    button.Text = ""
-    button.AutoButtonColor = false
+-- 创建数值输入框（带滑块和输入框）
+local function createValueInputWithSlider(name, text, description, icon, color, minValue, maxValue, defaultValue, callback)
+    local container = Instance.new("Frame")
+    container.Name = name .. "Container"
+    container.Size = UDim2.new(1, -8, 0, 70)
+    container.Position = UDim2.new(0, 4, 0, 0)
+    container.BackgroundTransparency = 1
+    container.Visible = true
     
-    local buttonCorner = Instance.new("UICorner")
-    buttonCorner.CornerRadius = UDim.new(0, 6)
-    buttonCorner.Parent = button
+    -- 背景框
+    local backgroundFrame = Instance.new("Frame")
+    backgroundFrame.Name = "BackgroundFrame"
+    backgroundFrame.Size = UDim2.new(1, 0, 1, 0)
+    backgroundFrame.Position = UDim2.new(0, 0, 0, 0)
+    backgroundFrame.BackgroundColor3 = color
+    backgroundFrame.BackgroundTransparency = 0.2
+    backgroundFrame.Visible = true
+    
+    local bgCorner = Instance.new("UICorner")
+    bgCorner.CornerRadius = UDim.new(0, 6)
+    bgCorner.Parent = backgroundFrame
     
     -- 图标
     local iconLabel = Instance.new("TextLabel")
     iconLabel.Name = "Icon"
-    iconLabel.Size = UDim2.new(0, 35, 0, 35)
+    iconLabel.Size = UDim2.new(0, 32, 0, 32)
     iconLabel.Position = UDim2.new(0, 8, 0, 10)
     iconLabel.BackgroundTransparency = 1
     iconLabel.Text = icon
     iconLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-    iconLabel.TextScaled = true
     iconLabel.Font = Enum.Font.GothamBold
+    iconLabel.TextSize = 16
+    iconLabel.Visible = true
     
-    -- 标题和值显示
+    -- 标题
     local titleLabel = Instance.new("TextLabel")
     titleLabel.Name = "Title"
-    titleLabel.Size = UDim2.new(0.7, 0, 0, 25)
-    titleLabel.Position = UDim2.new(0, 50, 0, 8)
+    titleLabel.Size = UDim2.new(0.5, 0, 0, 20)
+    titleLabel.Position = UDim2.new(0, 48, 0, 8)
     titleLabel.BackgroundTransparency = 1
-    titleLabel.Text = text .. ": " .. defaultValue
+    titleLabel.Text = text
     titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-    titleLabel.TextScaled = true
     titleLabel.Font = Enum.Font.GothamBold
+    titleLabel.TextSize = 14
     titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+    titleLabel.Visible = true
     
     -- 描述
     local descLabel = Instance.new("TextLabel")
     descLabel.Name = "Description"
-    descLabel.Size = UDim2.new(0.7, 0, 0, 20)
-    descLabel.Position = UDim2.new(0, 50, 0, 32)
+    descLabel.Size = UDim2.new(0.5, 0, 0, 16)
+    descLabel.Position = UDim2.new(0, 48, 0, 28)
     descLabel.BackgroundTransparency = 1
-    descLabel.Text = description
+    descLabel.Text = description .. " (最大值: " .. maxValue .. ")"
     descLabel.TextColor3 = Color3.fromRGB(200, 200, 220)
-    descLabel.TextScaled = true
     descLabel.Font = Enum.Font.Gotham
+    descLabel.TextSize = 11
     descLabel.TextXAlignment = Enum.TextXAlignment.Left
+    descLabel.Visible = true
+    
+    -- 输入框
+    local valueInput = Instance.new("TextBox")
+    valueInput.Name = "ValueInput"
+    valueInput.Size = UDim2.new(0.25, 0, 0, 28)
+    valueInput.Position = UDim2.new(0.7, 0, 0, 10)
+    valueInput.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
+    valueInput.BackgroundTransparency = 0.3
+    valueInput.Text = tostring(defaultValue)
+    valueInput.TextColor3 = Color3.fromRGB(255, 255, 255)
+    valueInput.PlaceholderText = "输入数值"
+    valueInput.Font = Enum.Font.Gotham
+    valueInput.TextSize = 14
+    valueInput.ClearTextOnFocus = false
+    valueInput.Visible = true
+    
+    local inputCorner = Instance.new("UICorner")
+    inputCorner.CornerRadius = UDim.new(0, 4)
+    inputCorner.Parent = valueInput
     
     -- 滑块背景
     local sliderBackground = Instance.new("Frame")
     sliderBackground.Name = "SliderBackground"
     sliderBackground.Size = UDim2.new(0.8, 0, 0, 6)
-    sliderBackground.Position = UDim2.new(0.1, 0, 1, -20)
+    sliderBackground.Position = UDim2.new(0.1, 0, 1, -16)
     sliderBackground.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
     sliderBackground.BorderSizePixel = 0
+    sliderBackground.Visible = true
     
     local sliderBgCorner = Instance.new("UICorner")
     sliderBgCorner.CornerRadius = UDim.new(1, 0)
@@ -344,135 +562,249 @@ local function createSimpleSlider(name, text, description, icon, color, minValue
     sliderFill.Position = UDim2.new(0, 0, 0, 0)
     sliderFill.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
     sliderFill.BorderSizePixel = 0
+    sliderFill.Visible = true
     
     local sliderFillCorner = Instance.new("UICorner")
     sliderFillCorner.CornerRadius = UDim.new(1, 0)
     sliderFillCorner.Parent = sliderFill
     
+    -- 滑块按钮
+    local sliderButton = Instance.new("Frame")
+    sliderButton.Name = "SliderButton"
+    sliderButton.Size = UDim2.new(0, 14, 0, 14)
+    sliderButton.Position = UDim2.new((defaultValue - minValue) / (maxValue - minValue), -7, 0.5, -7)
+    sliderButton.BackgroundColor3 = Color3.fromRGB(220, 220, 220)
+    sliderButton.BorderSizePixel = 0
+    sliderButton.Visible = true
+    
+    local sliderButtonCorner = Instance.new("UICorner")
+    sliderButtonCorner.CornerRadius = UDim.new(1, 0)
+    sliderButtonCorner.Parent = sliderButton
+    
     -- 当前值
     local currentValue = defaultValue
     
-    -- 简单滑块逻辑：点击滑块设置值
-    local function updateSlider(value)
-        local normalized = math.clamp((value - minValue) / (maxValue - minValue), 0, 1)
-        local roundedValue = math.floor(value * 10) / 10
+    -- 更新值函数
+    local function updateValue(newValue)
+        local clampedValue = math.clamp(newValue, minValue, maxValue)
+        local normalized = (clampedValue - minValue) / (maxValue - minValue)
+        local roundedValue = math.floor(clampedValue * 100) / 100
         
+        -- 更新滑块
         sliderFill.Size = UDim2.new(normalized, 0, 1, 0)
-        titleLabel.Text = text .. ": " .. roundedValue
+        sliderButton.Position = UDim2.new(normalized, -7, 0.5, -7)
+        
+        -- 更新输入框
+        valueInput.Text = tostring(roundedValue)
+        
+        -- 更新当前值
         currentValue = roundedValue
         
+        -- 执行回调
         if callback then
             callback(roundedValue)
         end
     end
     
-    -- 点击滑块设置值
+    -- 输入框事件
+    valueInput.FocusLost:Connect(function(enterPressed)
+        local newValue = tonumber(valueInput.Text)
+        if newValue then
+            updateValue(newValue)
+        else
+            -- 输入无效，恢复原值
+            valueInput.Text = tostring(currentValue)
+        end
+    end)
+    
+    -- 滑块拖拽逻辑
+    local isDragging = false
+    local dragStartX = 0
+    local sliderStartPos = 0
+    
+    sliderButton.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            isDragging = true
+            dragStartX = input.Position.X
+            sliderStartPos = sliderButton.Position.X.Scale
+        end
+    end)
+    
     sliderBackground.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            isDragging = true
             local mouseX = input.Position.X
             local sliderPos = sliderBackground.AbsolutePosition
             local sliderSize = sliderBackground.AbsoluteSize
             
             local relativeX = (mouseX - sliderPos.X) / sliderSize.X
-            local value = minValue + (maxValue - minValue) * relativeX
-            updateSlider(value)
+            local newValue = minValue + (maxValue - minValue) * relativeX
+            updateValue(newValue)
         end
     end)
     
-    -- 拖拽滑块
-    sliderBackground.InputChanged:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseMovement then
-            if input.UserInputState == Enum.UserInputState.Begin or input.UserInputState == Enum.UserInputState.Change then
-                local mouseX = input.Position.X
-                local sliderPos = sliderBackground.AbsolutePosition
-                local sliderSize = sliderBackground.AbsoluteSize
-                
-                local relativeX = (mouseX - sliderPos.X) / sliderSize.X
-                local value = minValue + (maxValue - minValue) * relativeX
-                updateSlider(value)
-            end
+    UserInputService.InputChanged:Connect(function(input)
+        if isDragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+            local mouseX = input.Position.X
+            local sliderPos = sliderBackground.AbsolutePosition
+            local sliderSize = sliderBackground.AbsoluteSize
+            
+            local relativeX = (mouseX - sliderPos.X) / sliderSize.X
+            local newValue = minValue + (maxValue - minValue) * relativeX
+            updateValue(newValue)
+        end
+    end)
+    
+    UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            isDragging = false
         end
     end)
     
     -- 组装
-    iconLabel.Parent = button
-    titleLabel.Parent = button
-    descLabel.Parent = button
     sliderFill.Parent = sliderBackground
-    sliderBackground.Parent = button
+    sliderButton.Parent = sliderBackground
+    iconLabel.Parent = backgroundFrame
+    titleLabel.Parent = backgroundFrame
+    descLabel.Parent = backgroundFrame
+    valueInput.Parent = backgroundFrame
+    sliderBackground.Parent = backgroundFrame
+    backgroundFrame.Parent = container
     
-    return button, function() return currentValue end
+    -- 初始化值
+    updateValue(defaultValue)
+    
+    return container
 end
 
--- ============================================
--- 完整的自动瞄准系统（您的原始脚本）
--- ============================================
-local autoAimSystem = {
-    enabled = false,
-    cameraLockConnection = nil,
-    isAimingActive = false,
+-- 创建数值输入框（带输入框）
+local function createValueInput(name, text, description, icon, color, minValue, maxValue, defaultValue, callback)
+    local container = Instance.new("Frame")
+    container.Name = name .. "Container"
+    container.Size = UDim2.new(1, -8, 0, 60)
+    container.Position = UDim2.new(0, 4, 0, 0)
+    container.BackgroundTransparency = 1
+    container.Visible = true
     
-    -- 缓存系统
-    barrelCache = {},
-    bossCache = {},
-    lastScanTime = 0,
-    lastBossScanTime = 0,
-    lastTransparentUpdate = 0,
-    transparentParts = {},
-    targetHistory = {},
+    -- 背景框
+    local backgroundFrame = Instance.new("Frame")
+    backgroundFrame.Name = "BackgroundFrame"
+    backgroundFrame.Size = UDim2.new(1, 0, 1, 0)
+    backgroundFrame.Position = UDim2.new(0, 0, 0, 0)
+    backgroundFrame.BackgroundColor3 = color
+    backgroundFrame.BackgroundTransparency = 0.2
+    backgroundFrame.Visible = true
     
-    -- 常量
-    PREDICTION_TIME = 0.2,
-    MAX_HISTORY_SIZE = 5,
-    MIN_VELOCITY_THRESHOLD = 0.1,
-    MAX_VIEW_ANGLE = 90,
-    COS_MAX_ANGLE = math.cos(math.rad(90 / 2)),
+    local bgCorner = Instance.new("UICorner")
+    bgCorner.CornerRadius = UDim.new(0, 6)
+    bgCorner.Parent = backgroundFrame
     
-    AIR_WALL_MATERIALS = {
-        [Enum.Material.Air] = true,
-        [Enum.Material.Water] = true,
-        [Enum.Material.Glass] = true,
-        [Enum.Material.ForceField] = true,
-        [Enum.Material.Neon] = true
-    },
+    -- 图标
+    local iconLabel = Instance.new("TextLabel")
+    iconLabel.Name = "Icon"
+    iconLabel.Size = UDim2.new(0, 32, 0, 32)
+    iconLabel.Position = UDim2.new(0, 8, 0.5, -16)
+    iconLabel.BackgroundTransparency = 1
+    iconLabel.Text = icon
+    iconLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    iconLabel.Font = Enum.Font.GothamBold
+    iconLabel.TextSize = 16
+    iconLabel.Visible = true
     
-    AIR_WALL_NAMES = {
-        invisiblewall = true, airwall = true, transparentwall = true,
-        collision = true, nocollision = true, ghost = true,
-        phase = true, clip = true, trigger = true, boundary = true
-    },
+    -- 标题
+    local titleLabel = Instance.new("TextLabel")
+    titleLabel.Name = "Title"
+    titleLabel.Size = UDim2.new(0.5, 0, 0, 20)
+    titleLabel.Position = UDim2.new(0, 48, 0, 10)
+    titleLabel.BackgroundTransparency = 1
+    titleLabel.Text = text
+    titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    titleLabel.Font = Enum.Font.GothamBold
+    titleLabel.TextSize = 14
+    titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+    titleLabel.Visible = true
     
-    -- 子功能开关
-    AimBarrels = true,
-    AimBoss = true,
-    UsePrediction = true,
-    CheckVisibility = true,
+    -- 描述
+    local descLabel = Instance.new("TextLabel")
+    descLabel.Name = "Description"
+    descLabel.Size = UDim2.new(0.5, 0, 0, 16)
+    descLabel.Position = UDim2.new(0, 48, 0, 28)
+    descLabel.BackgroundTransparency = 1
+    descLabel.Text = description .. " (最大值: " .. maxValue .. ")"
+    descLabel.TextColor3 = Color3.fromRGB(200, 200, 220)
+    descLabel.Font = Enum.Font.Gotham
+    descLabel.TextSize = 11
+    descLabel.TextXAlignment = Enum.TextXAlignment.Left
+    descLabel.Visible = true
     
-    -- 连接变量
-    connecta = nil,
-    connectb = nil,
-    characterAddedConnection = nil
-}
-
--- 清理连接
-function autoAimSystem:cleanupConnections()
-    if self.connecta then
-        self.connecta:Disconnect()
-        self.connecta = nil
+    -- 输入框
+    local valueInput = Instance.new("TextBox")
+    valueInput.Name = "ValueInput"
+    valueInput.Size = UDim2.new(0.3, 0, 0, 28)
+    valueInput.Position = UDim2.new(0.65, 0, 0.5, -14)
+    valueInput.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
+    valueInput.BackgroundTransparency = 0.3
+    valueInput.Text = tostring(defaultValue)
+    valueInput.TextColor3 = Color3.fromRGB(255, 255, 255)
+    valueInput.PlaceholderText = "输入数值"
+    valueInput.Font = Enum.Font.Gotham
+    valueInput.TextSize = 14
+    valueInput.ClearTextOnFocus = false
+    valueInput.Visible = true
+    
+    local inputCorner = Instance.new("UICorner")
+    inputCorner.CornerRadius = UDim.new(0, 4)
+    inputCorner.Parent = valueInput
+    
+    -- 当前值
+    local currentValue = defaultValue
+    
+    -- 更新值函数
+    local function updateValue(newValue)
+        local clampedValue = math.clamp(newValue, minValue, maxValue)
+        local roundedValue = math.floor(clampedValue * 100) / 100
+        
+        -- 更新输入框
+        valueInput.Text = tostring(roundedValue)
+        
+        -- 更新当前值
+        currentValue = roundedValue
+        
+        -- 执行回调
+        if callback then
+            callback(roundedValue)
+        end
     end
-    if self.connectb then
-        self.connectb:Disconnect()
-        self.connectb = nil
-    end
-    if self.characterAddedConnection then
-        self.characterAddedConnection:Disconnect()
-        self.characterAddedConnection = nil
-    end
+    
+    -- 输入框事件
+    valueInput.FocusLost:Connect(function(enterPressed)
+        local newValue = tonumber(valueInput.Text)
+        if newValue then
+            updateValue(newValue)
+        else
+            -- 输入无效，恢复原值
+            valueInput.Text = tostring(currentValue)
+        end
+    end)
+    
+    -- 组装
+    iconLabel.Parent = backgroundFrame
+    titleLabel.Parent = backgroundFrame
+    descLabel.Parent = backgroundFrame
+    valueInput.Parent = backgroundFrame
+    backgroundFrame.Parent = container
+    
+    -- 初始化值
+    updateValue(defaultValue)
+    
+    return container
 end
+
+-- ==================== 自动瞄准系统核心功能 ====================
 
 -- 检查Boss是否存在
-function autoAimSystem:checkBossExists()
-    local sleepyHollow = workspace:FindFirstChild("Sleepy Hollow")
+local function checkBossExists()
+    local sleepyHollow = Workspace:FindFirstChild("Sleepy Hollow")
     if not sleepyHollow then return false end
     
     local modes = sleepyHollow:FindFirstChild("Modes")
@@ -493,6 +825,7 @@ function autoAimSystem:checkBossExists()
     local torso = clothing:FindFirstChild("Torso")
     if not torso then return false end
     
+    -- 检查是否存在目标MeshPart
     local head002 = torso:FindFirstChild("Head.002")
     local head003 = torso:FindFirstChild("Head.003")
     
@@ -500,10 +833,10 @@ function autoAimSystem:checkBossExists()
 end
 
 -- 获取Boss目标部件
-function autoAimSystem:getBossTargetParts()
+local function getBossTargetParts()
     local targetParts = {}
     
-    local sleepyHollow = workspace:FindFirstChild("Sleepy Hollow")
+    local sleepyHollow = Workspace:FindFirstChild("Sleepy Hollow")
     if not sleepyHollow then return targetParts end
     
     local headlessHorseman = sleepyHollow.Modes.Boss.HeadlessHorsemanBoss.HeadlessHorseman
@@ -512,6 +845,7 @@ function autoAimSystem:getBossTargetParts()
     local torso = headlessHorseman.Clothing.Torso
     if not torso then return targetParts end
     
+    -- 获取所有MeshPart子部件作为目标
     for _, child in pairs(torso:GetChildren()) do
         if child:IsA("MeshPart") then
             table.insert(targetParts, {
@@ -525,249 +859,210 @@ function autoAimSystem:getBossTargetParts()
     return targetParts
 end
 
--- 更新目标历史数据
-function autoAimSystem:updateTargetHistory(target, currentPosition)
-    if not self.targetHistory[target] then
-        self.targetHistory[target] = {
-            positions = {},
-            timestamps = {},
-            velocity = Vector3.zero,
-            lastUpdate = tick()
-        }
-    end
-    
-    local history = self.targetHistory[target]
-    local currentTime = tick()
-    
-    table.insert(history.positions, currentPosition)
-    table.insert(history.timestamps, currentTime)
-    
-    while #history.positions > self.MAX_HISTORY_SIZE do
-        table.remove(history.positions, 1)
-        table.remove(history.timestamps, 1)
-    end
-    
-    if #history.positions >= 2 then
-        local latestPos = history.positions[#history.positions]
-        local previousPos = history.positions[1]
-        local timeDiff = history.timestamps[#history.timestamps] - history.timestamps[1]
-        
-        if timeDiff > 0 then
-            local newVelocity = (latestPos - previousPos) / timeDiff
-            history.velocity = history.velocity:Lerp(newVelocity, 0.5)
-            
-            if history.velocity.Magnitude < self.MIN_VELOCITY_THRESHOLD then
-                history.velocity = Vector3.zero
-            end
-        end
-    end
-    
-    history.lastUpdate = currentTime
-end
-
--- 获取预测位置
-function autoAimSystem:getPredictedPosition(target, currentPosition, predictionTime)
-    local history = self.targetHistory[target]
-    if not history or history.velocity.Magnitude < self.MIN_VELOCITY_THRESHOLD then
-        return currentPosition
-    end
-    
-    return currentPosition + history.velocity * predictionTime
-end
-
--- 清理过时的历史数据
-function autoAimSystem:cleanupOldTargetHistory()
-    local currentTime = tick()
-    local toRemove = {}
-    
-    for target, history in pairs(self.targetHistory) do
-        if currentTime - history.lastUpdate > 5 or (typeof(target) == "Instance" and not target.Parent) then
-            table.insert(toRemove, target)
-        end
-    end
-    
-    for _, target in ipairs(toRemove) do
-        self.targetHistory[target] = nil
-    end
-end
-
 -- 更新目标缓存
-function autoAimSystem:updateTargetCache()
-    table.clear(self.barrelCache)
-    table.clear(self.bossCache)
+local lastScanTime = 0
+local lastBossScanTime = 0
+local lastTransparentUpdate = 0
+
+local function updateTargetCache()
+    table.clear(barrelCache)
+    table.clear(bossCache)
     
-    local zombiesFolder = workspace:FindFirstChild("Zombies")
-    if zombiesFolder then 
-        local children = zombiesFolder:GetChildren()
-        for i = 1, #children do
-            local v = children[i]
-            if v:IsA("Model") and v.Name == "Agent" then
-                if v:GetAttribute("Type") == "Barrel" then
-                    local rootPart = v:FindFirstChild("HumanoidRootPart") or v:FindFirstChild("Torso") or v.PrimaryPart
-                    if rootPart then
-                        table.insert(self.barrelCache, {
-                            model = v, 
-                            rootPart = rootPart,
-                            type = "barrel"
-                        })
-                        self:updateTargetHistory(v, rootPart.Position)
+    -- 更新炸药桶缓存
+    if flags.AimBarrel then
+        zombiesFolder = Workspace:FindFirstChild("Zombies")
+        if zombiesFolder then 
+            local children = zombiesFolder:GetChildren()
+            for i = 1, #children do
+                local v = children[i]
+                if v:IsA("Model") and v.Name == "Agent" then
+                    if v:GetAttribute("Type") == "Barrel" then
+                        local rootPart = v:FindFirstChild("HumanoidRootPart") or v:FindFirstChild("Torso") or v.PrimaryPart
+                        if rootPart then
+                            barrelCache[#barrelCache + 1] = {
+                                model = v, 
+                                rootPart = rootPart,
+                                type = "barrel"
+                            }
+                        end
                     end
                 end
             end
         end
     end
     
-    if self:checkBossExists() then
-        local bossParts = self:getBossTargetParts()
+    -- 更新Boss缓存
+    if flags.AimBoss and checkBossExists() then
+        local bossParts = getBossTargetParts()
         for _, bossPart in ipairs(bossParts) do
-            table.insert(self.bossCache, {
+            bossCache[#bossCache + 1] = {
                 model = bossPart.part,
                 rootPart = bossPart.part,
                 type = "boss",
                 name = bossPart.name
-            })
-            self:updateTargetHistory(bossPart.part, bossPart.part.Position)
+            }
         end
     end
     
-    self.lastScanTime = tick()
-    self.lastBossScanTime = tick()
-    self:cleanupOldTargetHistory()
+    lastScanTime = tick()
+    lastBossScanTime = tick()
 end
 
 -- 更新透明部件缓存
-function autoAimSystem:updateTransparentPartsCache()
-    table.clear(self.transparentParts)
-    local descendants = workspace:GetDescendants()
+local function updateTransparentPartsCache()
+    table.clear(transparentParts)
+    local descendants = Workspace:GetDescendants()
     for i = 1, #descendants do
         local v = descendants[i]
         if v:IsA("BasePart") and v.Transparency == 1 then
-            table.insert(self.transparentParts, v)
+            transparentParts[#transparentParts + 1] = v
         end
     end
-    self.lastTransparentUpdate = tick()
+    lastTransparentUpdate = tick()
 end
 
--- 是否在视角范围内
-function autoAimSystem:isWithinViewAngle(targetPosition, cameraCFrame)
+-- 检查目标是否在视角范围内
+local function isWithinViewAngle(targetPosition, cameraCFrame)
+    local COS_MAX_ANGLE = math.cos(math.rad(flags.ViewAngle / 2))
     local cameraLookVector = cameraCFrame.LookVector
     local toTarget = (targetPosition - cameraCFrame.Position).Unit
-    return cameraLookVector:Dot(toTarget) > self.COS_MAX_ANGLE
+    return cameraLookVector:Dot(toTarget) > COS_MAX_ANGLE
 end
 
--- 是否透明或空气墙
-function autoAimSystem:isTransparentOrAirWall(part)
+-- 检查是否为透明或空气墙
+local AIR_WALL_MATERIALS = {
+    [Enum.Material.Air] = true,
+    [Enum.Material.Water] = true,
+    [Enum.Material.Glass] = true,
+    [Enum.Material.ForceField] = true,
+    [Enum.Material.Neon] = true
+}
+
+local AIR_WALL_NAMES = {
+    invisiblewall = true, airwall = true, transparentwall = true,
+    collision = true, nocollision = true, ghost = true,
+    phase = true, clip = true, trigger = true, boundary = true
+}
+
+local function isTransparentOrAirWall(part)
+    -- 检查透明度为1的部件（完全透明）
     if part.Transparency == 1 then
         return true
     end
     
+    -- 检查高透明度
     if part.Transparency > 0.8 then
         return true
     end
     
-    if self.AIR_WALL_MATERIALS[part.Material] then
+    -- 检查材质
+    if AIR_WALL_MATERIALS[part.Material] then
         return true
     end
     
-    if self.AIR_WALL_NAMES[part.Name:lower()] then
+    -- 检查名称
+    if AIR_WALL_NAMES[part.Name:lower()] then
         return true
-    end
-    
-    local color = part.BrickColor
-    if color == BrickColor.new("Really black") or color == BrickColor.new("Really white") then
-        return part.Transparency > 0.5
     end
     
     return false
 end
 
--- 目标是否可见
-function autoAimSystem:isTargetVisible(targetPart, cameraCFrame, char)
-    if not char or not targetPart or not workspace.CurrentCamera then 
+-- 检查目标是否可见
+local function isTargetVisible(targetPart, cameraCFrame)
+    if not char or not targetPart or not currentCamera then 
         return false 
     end
     
-    local currentCamera = workspace.CurrentCamera
     local rayOrigin = cameraCFrame.Position
     local targetPosition = targetPart.Position
     local rayDirection = (targetPosition - rayOrigin)
     local rayDistance = rayDirection.Magnitude
     
+    -- 安全检查
     if rayDistance ~= rayDistance then
         return false
     end
     
-    if not self:isWithinViewAngle(targetPosition, cameraCFrame) then
+    -- 首先检查目标是否在视角范围内
+    if not isWithinViewAngle(targetPosition, cameraCFrame) then
         return false
     end
     
+    -- 构建忽略列表
     local ignoreList = {char, currentCamera}
-    local playersFolder = workspace:FindFirstChild("Players")
-    local zombiesFolder = workspace:FindFirstChild("Zombies")
     
+    -- 忽略所有玩家
+    playersFolder = Workspace:FindFirstChild("Players")
     if playersFolder then
         local playerChildren = playersFolder:GetChildren()
         for i = 1, #playerChildren do
-            local playerModel = playerChildren[i]
-            if playerModel:IsA("Model") then
-                table.insert(ignoreList, playerModel)
+            local player = playerChildren[i]
+            if player:IsA("Model") then
+                ignoreList[#ignoreList + 1] = player
             end
         end
     end
     
+    -- 忽略所有非目标僵尸
     if zombiesFolder then
         local zombieChildren = zombiesFolder:GetChildren()
         for i = 1, #zombieChildren do
             local zombie = zombieChildren[i]
             if zombie:IsA("Model") and zombie.Name == "Agent" then
                 if zombie:GetAttribute("Type") ~= "Barrel" then
-                    table.insert(ignoreList, zombie)
+                    ignoreList[#ignoreList + 1] = zombie
                 end
             end
         end
     end
     
-    for i = 1, #self.transparentParts do
-        local transparentPart = self.transparentParts[i]
+    -- 添加透明部件到忽略列表
+    for i = 1, #transparentParts do
+        local transparentPart = transparentParts[i]
         if transparentPart and transparentPart.Parent then
-            table.insert(ignoreList, transparentPart)
+            ignoreList[#ignoreList + 1] = transparentPart
         end
     end
     
+    -- 进行射线检测
     local raycastParams = RaycastParams.new()
     raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
     raycastParams.FilterDescendantsInstances = ignoreList
     raycastParams.IgnoreWater = true
     
-    local rayResult = workspace:Raycast(rayOrigin, rayDirection, raycastParams)
+    local rayResult = Workspace:Raycast(rayOrigin, rayDirection, raycastParams)
     
     if not rayResult then
-        return true
+        return true -- 没有障碍物，目标可见
     else
+        -- 检查击中的是否是目标本身
         local hitInstance = rayResult.Instance
         if hitInstance:IsDescendantOf(targetPart.Parent) then
             local hitDistance = (rayResult.Position - rayOrigin).Magnitude
             return math.abs(hitDistance - rayDistance) < 5
         end
         
-        return self:isTransparentOrAirWall(rayResult.Instance)
+        -- 如果击中了非透明墙体，检查它是否可穿透
+        return isTransparentOrAirWall(rayResult.Instance)
     end
 end
 
 -- 查找最近可见目标
-function autoAimSystem:findNearestVisibleTarget(cameraCFrame, char)
-    local zombiesFolder = workspace:FindFirstChild("Zombies")
+local function findNearestVisibleTarget(cameraCFrame)
     local currentTime = tick()
     
-    if currentTime - self.lastScanTime > flags.ScanInterval then
-        self:updateTargetCache()
+    -- 定期更新缓存
+    if currentTime - lastScanTime > flags.ScanInterval or currentTime - lastBossScanTime > 1 then
+        updateTargetCache()
     end
     
-    if currentTime - self.lastTransparentUpdate > 5 then
-        self:updateTransparentPartsCache()
+    -- 定期更新透明部件缓存
+    if currentTime - lastTransparentUpdate > 5 then
+        updateTransparentPartsCache()
     end
     
-    if (#self.barrelCache == 0 and #self.bossCache == 0) or not char then
+    if (#barrelCache == 0 and #bossCache == 0) or not char then
         return nil, math.huge
     end
     
@@ -779,39 +1074,41 @@ function autoAimSystem:findNearestVisibleTarget(cameraCFrame, char)
     local playerPos = humanoidRootPart.Position
     local nearestTarget, minDistance = nil, math.huge
     
-    -- 检查炸药桶目标（如果启用）
-    if self.AimBarrels then
-        for i = 1, #self.barrelCache do
-            local target = self.barrelCache[i]
-            if target.model and target.model.Parent and target.rootPart and target.rootPart.Parent then
-                self:updateTargetHistory(target.model, target.rootPart.Position)
+    -- 检查炸药桶目标
+    for i = 1, #barrelCache do
+        local target = barrelCache[i]
+        if target.model and target.model.Parent and target.rootPart and target.rootPart.Parent then
+            local isVisible = true
+            if flags.UseRaycast then
+                isVisible = isTargetVisible(target.rootPart, cameraCFrame)
+            end
+            
+            if isVisible then
+                local distance = (playerPos - target.rootPart.Position).Magnitude
                 
-                if (not self.CheckVisibility) or self:isTargetVisible(target.rootPart, cameraCFrame, char) then
-                    local distance = (playerPos - target.rootPart.Position).Magnitude
-                    
-                    if distance < minDistance and distance < flags.MaxDistance then
-                        minDistance = distance
-                        nearestTarget = target
-                    end
+                if distance < minDistance and distance < flags.MaxDistance then
+                    minDistance = distance
+                    nearestTarget = target
                 end
             end
         end
     end
     
-    -- 检查Boss目标（如果启用）
-    if self.AimBoss then
-        for i = 1, #self.bossCache do
-            local target = self.bossCache[i]
-            if target.model and target.model.Parent and target.rootPart and target.rootPart.Parent then
-                self:updateTargetHistory(target.model, target.rootPart.Position)
+    -- 检查Boss目标
+    for i = 1, #bossCache do
+        local target = bossCache[i]
+        if target.model and target.model.Parent and target.rootPart and target.rootPart.Parent then
+            local isVisible = true
+            if flags.UseRaycast then
+                isVisible = isTargetVisible(target.rootPart, cameraCFrame)
+            end
+            
+            if isVisible then
+                local distance = (playerPos - target.rootPart.Position).Magnitude
                 
-                if (not self.CheckVisibility) or self:isTargetVisible(target.rootPart, cameraCFrame, char) then
-                    local distance = (playerPos - target.rootPart.Position).Magnitude
-                    
-                    if distance < minDistance and distance < flags.MaxDistance then
-                        minDistance = distance
-                        nearestTarget = target
-                    end
+                if distance < minDistance and distance < flags.MaxDistance then
+                    minDistance = distance
+                    nearestTarget = target
                 end
             end
         end
@@ -820,140 +1117,107 @@ function autoAimSystem:findNearestVisibleTarget(cameraCFrame, char)
     return nearestTarget, minDistance
 end
 
--- 更新瞄准状态（检查是否有枪）
-function autoAimSystem:updateAimingStatus(char)
-    if not char then
-        self.isAimingActive = false
-        return
-    end
+-- 检查是否持有枪支
+local function isArmed()
+    if not char then return false end
     
-    local hasGun = false
     for _, child in pairs(char:GetChildren()) do
         if child:IsA("Tool") and child:GetAttribute("IsGun") == true then
-            hasGun = true
-            break
+            return true
         end
     end
-    self.isAimingActive = hasGun
+    
+    return false
 end
 
--- 设置角色监听器
-function autoAimSystem:setupCharacterListeners(char)
-    self:cleanupConnections()
+-- 初始化自动瞄准系统
+local function initAimingSystem()
+    char = player.Character
+    currentCamera = Workspace.CurrentCamera
     
-    if char then
-        self.connecta = char.ChildAdded:Connect(function(child)
-            if child:IsA("Tool") and child:GetAttribute("IsGun") == true then
-                self.isAimingActive = true
-            end
-            self:updateAimingStatus(char)
-        end)
-        
-        self.connectb = char.ChildRemoved:Connect(function(child)
-            if child:IsA("Tool") then
-                self:updateAimingStatus(char)
-            end
-        end)
-        
-        self:updateAimingStatus(char)
+    if not char then
+        player.CharacterAdded:Wait()
+        char = player.Character
     end
-end
-
--- 启动瞄准循环
-function autoAimSystem:start()
-    if self.enabled then return end
-    self.enabled = true
     
-    local char = player.Character
-    self:updateTransparentPartsCache()
-    self:updateTargetCache()
-    self:setupCharacterListeners(char)
+    -- 初始缓存更新
+    updateTransparentPartsCache()
+    updateTargetCache()
     
-    -- 监听角色变化
-    self.characterAddedConnection = player.CharacterAdded:Connect(function(newChar)
-        char = newChar
-        task.wait(1)
-        self:setupCharacterListeners(char)
-        self:updateTransparentPartsCache()
-        self:updateTargetCache()
-    end)
+    -- 清理现有连接
+    if cameraLockConnection then
+        cameraLockConnection:Disconnect()
+        cameraLockConnection = nil
+    end
     
-    -- 主循环
-    self.cameraLockConnection = RunService.Heartbeat:Connect(function()
-        if not flags.StartShoot or not self.enabled then 
-            self:cleanupConnections()
-            if self.cameraLockConnection then
-                self.cameraLockConnection:Disconnect()
-                self.cameraLockConnection = nil
-            end
+    -- 主瞄准循环
+    cameraLockConnection = RunService.Heartbeat:Connect(function()
+        if not flags.StartShoot then
             return
         end
         
-        if not char or not char.Parent or not workspace.CurrentCamera then
+        -- 检查是否只在持枪时瞄准
+        if flags.OnlyWhenArmed and not isArmed() then
             return
         end
         
-        if not self.isAimingActive then
-            return
+        -- 安全检查
+        if not char or not char.Parent or not currentCamera then
+            currentCamera = Workspace.CurrentCamera
+            if not currentCamera then return end
         end
         
-        local cameraCFrame = workspace.CurrentCamera.CFrame
-        local nearestTarget, distance = self:findNearestVisibleTarget(cameraCFrame, char)
+        local cameraCFrame = currentCamera.CFrame
+        local nearestTarget, distance = findNearestVisibleTarget(cameraCFrame)
         
         if nearestTarget and nearestTarget.rootPart then
-            local currentPosition = nearestTarget.rootPart.Position
-            local predictedPosition = self.UsePrediction and 
-                self:getPredictedPosition(nearestTarget.model, currentPosition, flags.PredictionTime) or currentPosition
-            local cameraPosition = cameraCFrame.Position
+            local targetPosition = nearestTarget.rootPart.Position
             
-            if predictedPosition and cameraPosition then
-                local lookCFrame = CFrame.lookAt(cameraPosition, predictedPosition)
-                workspace.CurrentCamera.CFrame = cameraCFrame:Lerp(lookCFrame, flags.SmoothAim)
+            -- 使用预测瞄准
+            if flags.UsePrediction then
+                -- 简单的线性预测
+                local targetVelocity = Vector3.new(0, 0, 0)
+                -- 这里可以添加更复杂的预测逻辑
+                targetPosition = targetPosition + targetVelocity * flags.PredictionTime
             end
+            
+            local cameraPosition = cameraCFrame.Position
+            local lookCFrame = CFrame.lookAt(cameraPosition, targetPosition)
+            currentCamera.CFrame = cameraCFrame:Lerp(lookCFrame, flags.SmoothAim)
         end
     end)
 end
 
--- 停止瞄准
-function autoAimSystem:stop()
-    if not self.enabled then return end
-    self.enabled = false
-    
-    if self.cameraLockConnection then
-        self.cameraLockConnection:Disconnect()
-        self.cameraLockConnection = nil
-    end
-    
-    if self.targetHistory then
-        table.clear(self.targetHistory)
-    end
-    
-    self:cleanupConnections()
-end
+-- ==================== 创建UI功能按钮 ====================
 
--- ============================================
--- 创建UI功能按钮（包含所有子功能）
--- ============================================
+print("创建UI组件函数")
 
+-- 创建功能按钮
 local totalHeight = 0
 local buttons = {}
 
 -- 1. 主开关 - 自动瞄准
-local mainToggleBtn, toggleMain = createToggleButton(
+local mainToggleBtn, toggleMain = createSimpleToggle(
     "MainToggle",
     "自动瞄准",
-    "开启/关闭完整自动瞄准系统",
+    "开启/关闭自动瞄准系统",
     "🎯",
     Color3.fromRGB(60, 150, 220),
     flags.StartShoot,
     function(val)
         flags.StartShoot = val
+        print("自动瞄准:", val and "开启" or "关闭")
+        
         if val then
-            autoAimSystem:start()
-            print("自动瞄准系统已开启")
+            -- 初始化瞄准系统
+            initAimingSystem()
         else
-            autoAimSystem:stop()
-            print("自动瞄准系统已关闭")
+            -- 关闭瞄准系统
+            if cameraLockConnection then
+                cameraLockConnection:Disconnect()
+                cameraLockConnection = nil
+            end
+            print("自动瞄准已关闭")
         end
     end
 )
@@ -963,16 +1227,17 @@ table.insert(buttons, mainToggleBtn)
 totalHeight = totalHeight + 55 + 5
 
 -- 2. 炸药桶瞄准开关
-local barrelBtn, toggleBarrel = createToggleButton(
+local barrelBtn, toggleBarrel = createSimpleToggle(
     "BarrelAim",
     "瞄准炸药桶",
-    "开启/关闭炸药桶瞄准",
+    "瞄准游戏中的炸药桶",
     "💣",
     Color3.fromRGB(220, 120, 60),
-    autoAimSystem.AimBarrels,
+    flags.AimBarrel,
     function(val)
-        autoAimSystem.AimBarrels = val
+        flags.AimBarrel = val
         print("炸药桶瞄准:", val and "开启" or "关闭")
+        updateTargetCache()
     end
 )
 barrelBtn.Position = UDim2.new(0, 4, 0, totalHeight + 5)
@@ -981,16 +1246,17 @@ table.insert(buttons, barrelBtn)
 totalHeight = totalHeight + 55 + 5
 
 -- 3. Boss瞄准开关
-local bossBtn, toggleBoss = createToggleButton(
+local bossBtn, toggleBoss = createSimpleToggle(
     "BossAim",
     "瞄准Boss",
-    "开启/关闭Boss瞄准",
+    "瞄准游戏中的Boss",
     "👹",
     Color3.fromRGB(180, 60, 220),
-    autoAimSystem.AimBoss,
+    flags.AimBoss,
     function(val)
-        autoAimSystem.AimBoss = val
-        print("Boss瞄准:", val and "开启"或 "关闭")
+        flags.AimBoss = val
+        print("Boss瞄准:", val and "开启" or "关闭")
+        updateTargetCache()
     end
 )
 bossBtn.Position = UDim2.new(0, 4, 0, totalHeight + 5)
@@ -999,15 +1265,15 @@ table.insert(buttons, bossBtn)
 totalHeight = totalHeight + 55 + 5
 
 -- 4. 预测瞄准开关
-local predictionBtn, togglePrediction = createToggleButton(
+local predictionBtn, togglePrediction = createSimpleToggle(
     "Prediction",
     "预测瞄准",
-    "开启/关闭预测瞄准",
+    "预测目标移动位置",
     "🔮",
     Color3.fromRGB(150, 220, 60),
-    autoAimSystem.UsePrediction,
+    flags.UsePrediction,
     function(val)
-        autoAimSystem.UsePrediction = val
+        flags.UsePrediction = val
         print("预测瞄准:", val and "开启" or "关闭")
     end
 )
@@ -1017,15 +1283,15 @@ table.insert(buttons, predictionBtn)
 totalHeight = totalHeight + 55 + 5
 
 -- 5. 射线检测开关
-local raycastBtn, toggleRaycast = createToggleButton(
+local raycastBtn, toggleRaycast = createSimpleToggle(
     "Raycast",
     "射线检测",
-    "开启/关闭障碍物检测",
+    "检测障碍物可见性",
     "🔍",
     Color3.fromRGB(60, 220, 180),
-    autoAimSystem.CheckVisibility,
+    flags.UseRaycast,
     function(val)
-        autoAimSystem.CheckVisibility = val
+        flags.UseRaycast = val
         print("射线检测:", val and "开启" or "关闭")
     end
 )
@@ -1034,11 +1300,47 @@ raycastBtn.Parent = functionsContainer
 table.insert(buttons, raycastBtn)
 totalHeight = totalHeight + 55 + 5
 
--- 6. 最大距离滑块
-local distanceSlider = createSimpleSlider(
+-- 6. 仅持枪时瞄准开关
+local armedOnlyBtn, toggleArmedOnly = createSimpleToggle(
+    "ArmedOnly",
+    "仅持枪瞄准",
+    "只有在持有枪支时瞄准",
+    "🔫",
+    Color3.fromRGB(220, 60, 120),
+    flags.OnlyWhenArmed,
+    function(val)
+        flags.OnlyWhenArmed = val
+        print("仅持枪时瞄准:", val and "开启" or "关闭")
+    end
+)
+armedOnlyBtn.Position = UDim2.new(0, 4, 0, totalHeight + 5)
+armedOnlyBtn.Parent = functionsContainer
+table.insert(buttons, armedOnlyBtn)
+totalHeight = totalHeight + 55 + 5
+
+-- 7. 自动更新缓存开关
+local autoUpdateBtn, toggleAutoUpdate = createSimpleToggle(
+    "AutoUpdate",
+    "自动更新缓存",
+    "自动更新目标缓存",
+    "🔄",
+    Color3.fromRGB(120, 60, 220),
+    flags.AutoUpdateCache,
+    function(val)
+        flags.AutoUpdateCache = val
+        print("自动更新缓存:", val and "开启" or "关闭")
+    end
+)
+autoUpdateBtn.Position = UDim2.new(0, 4, 0, totalHeight + 5)
+autoUpdateBtn.Parent = functionsContainer
+table.insert(buttons, autoUpdateBtn)
+totalHeight = totalHeight + 55 + 5
+
+-- 8. 最大距离滑块+输入框
+local distanceSlider = createValueInputWithSlider(
     "MaxDistance",
     "最大距离",
-    "瞄准最大有效距离",
+    "瞄准最大距离(米)",
     "📏",
     Color3.fromRGB(220, 200, 60),
     100,
@@ -1046,16 +1348,16 @@ local distanceSlider = createSimpleSlider(
     flags.MaxDistance,
     function(val)
         flags.MaxDistance = val
-        print("最大距离设置为:", val)
+        print("最大距离:", val)
     end
 )
 distanceSlider.Position = UDim2.new(0, 4, 0, totalHeight + 5)
 distanceSlider.Parent = functionsContainer
 table.insert(buttons, distanceSlider)
-totalHeight = totalHeight + 65 + 5
+totalHeight = totalHeight + 70 + 5
 
--- 7. 平滑度滑块
-local smoothSlider = createSimpleSlider(
+-- 9. 平滑度滑块+输入框
+local smoothSlider = createValueInputWithSlider(
     "SmoothAim",
     "平滑瞄准",
     "瞄准平滑度(0.1-1.0)",
@@ -1066,13 +1368,75 @@ local smoothSlider = createSimpleSlider(
     flags.SmoothAim,
     function(val)
         flags.SmoothAim = val
-        print("平滑度设置为:", val)
+        print("平滑度:", val)
     end
 )
 smoothSlider.Position = UDim2.new(0, 4, 0, totalHeight + 5)
 smoothSlider.Parent = functionsContainer
 table.insert(buttons, smoothSlider)
-totalHeight = totalHeight + 65 + 5
+totalHeight = totalHeight + 70 + 5
+
+-- 10. 预测时间输入框
+local predictionTimeInput = createValueInput(
+    "PredictionTime",
+    "预测时间",
+    "瞄准预测时间(秒)",
+    "⏱️",
+    Color3.fromRGB(60, 180, 220),
+    0.1,
+    1.0,
+    flags.PredictionTime,
+    function(val)
+        flags.PredictionTime = val
+        print("预测时间:", val)
+    end
+)
+predictionTimeInput.Position = UDim2.new(0, 4, 0, totalHeight + 5)
+predictionTimeInput.Parent = functionsContainer
+table.insert(buttons, predictionTimeInput)
+totalHeight = totalHeight + 60 + 5
+
+-- 11. 扫描间隔输入框
+local scanIntervalInput = createValueInput(
+    "ScanInterval",
+    "扫描间隔",
+    "目标扫描间隔(秒)",
+    "📡",
+    Color3.fromRGB(220, 100, 60),
+    1,
+    10,
+    flags.ScanInterval,
+    function(val)
+        flags.ScanInterval = val
+        print("扫描间隔:", val)
+    end
+)
+scanIntervalInput.Position = UDim2.new(0, 4, 0, totalHeight + 5)
+scanIntervalInput.Parent = functionsContainer
+table.insert(buttons, scanIntervalInput)
+totalHeight = totalHeight + 60 + 5
+
+-- 12. 视角角度输入框
+local viewAngleInput = createValueInput(
+    "ViewAngle",
+    "视角角度",
+    "瞄准视角角度(度)",
+    "📐",
+    Color3.fromRGB(60, 220, 120),
+    30,
+    180,
+    flags.ViewAngle,
+    function(val)
+        flags.ViewAngle = val
+        print("视角角度:", val)
+    end
+)
+viewAngleInput.Position = UDim2.new(0, 4, 0, totalHeight + 5)
+viewAngleInput.Parent = functionsContainer
+table.insert(buttons, viewAngleInput)
+totalHeight = totalHeight + 60 + 5
+
+print("创建功能按钮完成，总高度:", totalHeight)
 
 -- 设置容器高度
 functionsContainer.Size = UDim2.new(1, 0, 0, totalHeight)
@@ -1081,6 +1445,8 @@ functionsContainer.Size = UDim2.new(1, 0, 0, totalHeight)
 scrollingFrame.CanvasSize = UDim2.new(0, 0, 0, totalHeight)
 
 -- 组装UI
+print("开始组装UI...")
+
 functionsContainer.Parent = scrollingFrame
 scrollingFrame.Parent = contentArea
 titleLabel.Parent = titleBar
@@ -1088,8 +1454,6 @@ closeButton.Parent = titleBar
 scaleButton.Parent = titleBar
 titleBar.Parent = mainFrame
 contentArea.Parent = mainFrame
-mainFrame.Parent = screenGui
-screenGui.Parent = playerGui
 
 -- 添加边框
 local border = Instance.new("Frame")
@@ -1100,11 +1464,23 @@ border.BackgroundColor3 = Color3.fromRGB(80, 80, 100)
 border.BackgroundTransparency = 0.7
 border.BorderSizePixel = 0
 border.ZIndex = -1
+border.Visible = true
 
 local borderCorner = Instance.new("UICorner")
-borderCorner.CornerRadius = UDim.new(0, 11)
+borderCorner.CornerRadius = UDim.new(0, 13)
 borderCorner.Parent = border
 border.Parent = mainFrame
+
+print("UI组装完成，添加到ScreenGui...")
+
+mainFrame.Parent = screenGui
+
+-- 最后将ScreenGui添加到PlayerGui
+screenGui.Parent = playerGui
+
+print("UI已成功添加到PlayerGui")
+
+-- ==================== UI动画和交互 ====================
 
 -- 彩虹颜色变换函数
 local hue = 0
@@ -1114,8 +1490,26 @@ local function updateRainbowText()
     titleLabel.TextColor3 = color
 end
 
+-- 窗口入场动画
+local function showWindowAnimation()
+    -- 初始位置：屏幕右侧外部
+    mainFrame.Position = UDim2.new(1.5, -170, 0.5, -210)
+    mainFrame.Visible = true
+    
+    -- 入场动画
+    local entryTween = TweenService:Create(mainFrame, TweenInfo.new(0.7, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+        Position = UDim2.new(0.5, -170, 0.5, -210)
+    })
+    
+    entryTween:Play()
+    entryTween.Completed:Connect(function()
+        print("UI入场动画完成")
+    end)
+end
+
 -- 关闭功能
 closeButton.MouseButton1Click:Connect(function()
+    print("关闭按钮被点击")
     -- 先关闭自动瞄准
     if flags.StartShoot then
         toggleMain()
@@ -1145,8 +1539,8 @@ local function toggleMinimize()
     isMinimized = not isMinimized
     
     if isMinimized then
-        local minimizedSize = UDim2.new(0, 120, 0, 30)
-        local minimizedPosition = UDim2.new(0.5, -60, 0, 10)
+        local minimizedSize = UDim2.new(0, 140, 0, 35)
+        local minimizedPosition = UDim2.new(0.5, -70, 0, 10)
         
         local tweenInfo = TweenInfo.new(0.25, Enum.EasingStyle.Quad)
         local tween = TweenService:Create(mainFrame, tweenInfo, {
@@ -1157,7 +1551,7 @@ local function toggleMinimize()
         tween:Play()
         
         contentArea.Visible = false
-        titleLabel.Text = "义和团"
+        titleLabel.Text = "菜单(点击展开)"
         titleLabel.Size = UDim2.new(0.9, 0, 1, 0)
         titleLabel.Position = UDim2.new(0.05, 0, 0, 0)
         closeButton.Visible = false
@@ -1175,7 +1569,7 @@ local function toggleMinimize()
         tween:Play()
         
         contentArea.Visible = true
-        titleLabel.Text = "义和团"
+        titleLabel.Text = "义和团自动瞄准"
         titleLabel.Size = UDim2.new(0.6, 0, 1, 0)
         titleLabel.Position = UDim2.new(0.05, 0, 0, 0)
         closeButton.Visible = true
@@ -1197,11 +1591,12 @@ minimizedClicker.Visible = false
 minimizedClicker.Parent = screenGui
 
 scaleButton.MouseButton1Click:Connect(function()
+    print("缩放按钮被点击")
     toggleMinimize()
     
     if isMinimized then
-        minimizedClicker.Size = UDim2.new(0, 120, 0, 30)
-        minimizedClicker.Position = UDim2.new(0.5, -60, 0, 10)
+        minimizedClicker.Size = UDim2.new(0, 140, 0, 35)
+        minimizedClicker.Position = UDim2.new(0.5, -70, 0, 10)
         minimizedClicker.Visible = true
     else
         minimizedClicker.Visible = false
@@ -1210,6 +1605,7 @@ end)
 
 minimizedClicker.MouseButton1Click:Connect(function()
     if isMinimized then
+        print("小长方形被点击")
         toggleMinimize()
         minimizedClicker.Visible = false
     end
@@ -1221,17 +1617,23 @@ local function setupButtonHover(button)
     local originalTransparency = button.BackgroundTransparency
     
     button.MouseEnter:Connect(function()
-        button.BackgroundTransparency = 0.1
-        button.BackgroundColor3 = Color3.fromRGB(
-            math.min(255, originalColor.R * 255 * 1.2),
-            math.min(255, originalColor.G * 255 * 1.2),
-            math.min(255, originalColor.B * 255 * 1.2)
-        )
+        local tween = TweenService:Create(button, TweenInfo.new(0.15), {
+            BackgroundTransparency = 0.1,
+            BackgroundColor3 = Color3.fromRGB(
+                math.min(255, originalColor.R * 255 * 1.2),
+                math.min(255, originalColor.G * 255 * 1.2),
+                math.min(255, originalColor.B * 255 * 1.2)
+            )
+        })
+        tween:Play()
     end)
     
     button.MouseLeave:Connect(function()
-        button.BackgroundTransparency = originalTransparency
-        button.BackgroundColor3 = originalColor
+        local tween = TweenService:Create(button, TweenInfo.new(0.15), {
+            BackgroundTransparency = originalTransparency,
+            BackgroundColor3 = originalColor
+        })
+        tween:Play()
     end)
 end
 
@@ -1241,40 +1643,106 @@ for _, button in ipairs(buttons) do
 end
 
 closeButton.MouseEnter:Connect(function()
-    closeButton.BackgroundTransparency = 0.2
-    closeButton.BackgroundColor3 = Color3.fromRGB(255, 80, 80)
+    local tween = TweenService:Create(closeButton, TweenInfo.new(0.15), {
+        BackgroundTransparency = 0.2,
+        BackgroundColor3 = Color3.fromRGB(255, 80, 80)
+    })
+    tween:Play()
 end)
 
 closeButton.MouseLeave:Connect(function()
-    closeButton.BackgroundTransparency = 0.3
-    closeButton.BackgroundColor3 = Color3.fromRGB(220, 60, 60)
+    local tween = TweenService:Create(closeButton, TweenInfo.new(0.15), {
+        BackgroundTransparency = 0.3,
+        BackgroundColor3 = Color3.fromRGB(220, 60, 60)
+    })
+    tween:Play()
 end)
 
 scaleButton.MouseEnter:Connect(function()
-    scaleButton.BackgroundTransparency = 0.2
-    scaleButton.BackgroundColor3 = Color3.fromRGB(80, 150, 255)
+    local tween = TweenService:Create(scaleButton, TweenInfo.new(0.15), {
+        BackgroundTransparency = 0.2,
+        BackgroundColor3 = Color3.fromRGB(80, 150, 255)
+    })
+    tween:Play()
 end)
 
 scaleButton.MouseLeave:Connect(function()
-    scaleButton.BackgroundTransparency = 0.3
-    scaleButton.BackgroundColor3 = Color3.fromRGB(60, 120, 220)
+    local tween = TweenService:Create(scaleButton, TweenInfo.new(0.15), {
+        BackgroundTransparency = 0.3,
+        BackgroundColor3 = Color3.fromRGB(60, 120, 220)
+    })
+    tween:Play()
 end)
 
 -- 运行彩虹文本更新
-RunService.RenderStepped:Connect(updateRainbowText)
+local rainbowConnection
+rainbowConnection = RunService.RenderStepped:Connect(updateRainbowText)
 
-print("=== 义和团自动瞄准完整系统已加载 ===")
-print("包含所有子功能:")
-print("1. 主开关 - 自动瞄准系统")
-print("2. 炸药桶瞄准 - 可单独开关")
-print("3. Boss瞄准 - 可单独开关")
-print("4. 预测瞄准 - 可单独开关")
-print("5. 射线检测 - 可单独开关")
-print("6. 最大距离 - 滑块调节")
-print("7. 平滑瞄准 - 滑块调节")
-print("8. 透明墙检测系统")
-print("9. 视角限制系统")
-print("10. 武器检测系统")
-print("11. 历史位置跟踪")
-print("12. 缓存优化系统")
-print("=================================")
+print("=== 义和团自动瞄准UI加载完成 ===")
+print("UI位置: 屏幕中央")
+print("UI尺寸: 340x420 正方形")
+print("包含功能:")
+print("1. 自动瞄准主开关")
+print("2. 炸药桶瞄准开关")
+print("3. Boss瞄准开关")
+print("4. 预测瞄准开关")
+print("5. 射线检测开关")
+print("6. 仅持枪时瞄准开关")
+print("7. 自动更新缓存开关")
+print("8. 最大距离滑块+输入框 (100-2000)")
+print("9. 平滑度滑块+输入框 (0.1-1.0)")
+print("10. 预测时间输入框 (0.1-1.0)")
+print("11. 扫描间隔输入框 (1-10)")
+print("12. 视角角度输入框 (30-180)")
+print("=============================")
+
+-- 添加显示/隐藏快捷键
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if not gameProcessed then
+        if input.KeyCode == Enum.KeyCode.RightControl then
+            print("按下了RightControl键，显示/隐藏UI")
+            screenGui.Enabled = not screenGui.Enabled
+        elseif input.KeyCode == Enum.KeyCode.F1 then
+            print("按下了F1键，切换UI显示")
+            screenGui.Enabled = not screenGui.Enabled
+        end
+    end
+end)
+
+-- 确保UI可见
+screenGui.Enabled = true
+mainFrame.Visible = false -- 先隐藏，等动画显示
+
+-- 初始缓存更新
+task.spawn(function()
+    task.wait(1)
+    updateTransparentPartsCache()
+    updateTargetCache()
+    print("初始缓存更新完成")
+end)
+
+-- 角色变化处理
+player.CharacterAdded:Connect(function(newChar)
+    char = newChar
+    print("角色已更新")
+    
+    if flags.StartShoot then
+        task.wait(1)
+        initAimingSystem()
+        print("瞄准系统已重新初始化")
+    end
+end)
+
+-- 启动UI显示序列
+task.spawn(function()
+    -- 显示注入动画
+    showInjectionAnimation()
+    
+    -- 等待注入动画完成
+    task.wait(2.5)
+    
+    -- 显示UI窗口
+    showWindowAnimation()
+    
+    print("UI初始化完成，应该在屏幕上可见")
+end)
